@@ -1,12 +1,11 @@
 import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
-import { useNavigate } from "react-router-dom";
+
 import Layout from "@/components/Layout";
 import QuickAddTransaction from "@/components/QuickAddTransaction";
 import TransactionEditor from "@/components/TransactionEditor";
 import { useAppData } from "@/context/AppContext";
-import { Plus, SlidersHorizontal, Wallet, CalendarClock, ChevronLeft, ChevronRight } from "lucide-react";
-import TelegramLink from "@/components/TelegramLink";
+import { CalendarClock, ChevronLeft, ChevronRight } from "lucide-react";
 import type { Transaction } from "@/lib/mock-data";
 
 const fadeIn = {
@@ -31,7 +30,6 @@ function formatMonthLabel(key: string) {
 }
 
 export default function Index() {
-  const navigate = useNavigate();
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [editTx, setEditTx] = useState<Transaction | null>(null);
   const { transactions, accounts, budgets, subscriptions, investments } = useAppData();
@@ -76,12 +74,13 @@ export default function Index() {
   const budgetPct = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
   const budgetBarColor = budgetPct < 70 ? 'bg-primary' : budgetPct < 90 ? 'bg-warning' : 'bg-danger';
 
-  const liquidez = accounts.filter(a => a.type !== 'credit').reduce((s, a) => s + a.balance, 0);
-  const deuda = Math.abs(accounts.filter(a => a.type === 'credit').reduce((s, a) => s + a.balance, 0));
+  const liquidez = accounts.filter(a => a.type === 'checking' || a.type === 'savings').reduce((s, a) => s + a.balance, 0);
+  const creditoDisponible = accounts.filter(a => a.type === 'credit' && a.creditLimit).reduce((s, a) => s + ((a.creditLimit ?? 0) - Math.abs(a.balance)), 0);
+  const deudaTarjetas = Math.abs(accounts.filter(a => a.type === 'credit').reduce((s, a) => s + a.balance, 0));
+  const deudasExternas = Math.abs(accounts.filter(a => a.type === 'debt').reduce((s, a) => s + a.balance, 0));
   const invested = investments.reduce((s, i) => s + i.current_value, 0);
-  const capitalTotal = liquidez + invested - deuda;
+  const capitalTotal = liquidez + invested - deudaTarjetas - deudasExternas;
 
-  const quedaPorGastar = totalBudget - totalSpent;
   const recentTransactions = monthTxs.slice(0, 5);
 
   // Upcoming payments (always current)
@@ -126,42 +125,36 @@ export default function Index() {
         <motion.div {...fadeIn} transition={{ delay: 0.05 }} className="card-calm p-6">
           <p className="text-label mb-1">Capital total</p>
           <p className="text-4xl font-bold text-foreground tracking-tight">{formatMoney(capitalTotal)}</p>
-          <div className="flex flex-wrap gap-x-6 gap-y-1 mt-4 text-sm">
-            <div><span className="text-muted-foreground">Disponible: </span><span className="text-foreground font-medium">{formatMoney(liquidez)}</span></div>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-2 mt-4 text-sm">
+            <div><span className="text-muted-foreground">Líquido: </span><span className="text-foreground font-medium">{formatMoney(liquidez)}</span></div>
+            <div><span className="text-muted-foreground">Crédito disponible: </span><span className="text-foreground font-medium">{formatMoney(creditoDisponible)}</span></div>
             <div><span className="text-muted-foreground">Invertido: </span><span className="text-foreground font-medium">{formatMoney(invested)}</span></div>
-            <div><span className="text-muted-foreground">Deuda: </span><span className="text-danger font-medium">–{formatMoney(deuda)}</span></div>
+            <div><span className="text-muted-foreground">Deuda tarjetas: </span><span className="text-danger font-medium">–{formatMoney(deudaTarjetas)}</span></div>
+            {deudasExternas > 0 && (
+              <div><span className="text-muted-foreground">Deudas externas: </span><span className="text-danger font-medium">–{formatMoney(deudasExternas)}</span></div>
+            )}
           </div>
         </motion.div>
 
-        {/* Quick Actions */}
-        <motion.div {...fadeIn} transition={{ delay: 0.08 }} className="grid grid-cols-4 gap-3">
-          <button onClick={() => setQuickAddOpen(true)} className="card-calm p-3 flex flex-col items-center gap-2 hover:bg-accent/50 transition-colors">
-            <Plus className="w-5 h-5 text-primary" /><span className="text-xs font-medium text-foreground">Registrar</span>
-          </button>
-          <button onClick={() => navigate('/budgets')} className="card-calm p-3 flex flex-col items-center gap-2 hover:bg-accent/50 transition-colors">
-            <SlidersHorizontal className="w-5 h-5 text-muted-foreground" /><span className="text-xs font-medium text-foreground">Presupuesto</span>
-          </button>
-          <button onClick={() => navigate('/accounts')} className="card-calm p-3 flex flex-col items-center gap-2 hover:bg-accent/50 transition-colors">
-            <Wallet className="w-5 h-5 text-muted-foreground" /><span className="text-xs font-medium text-foreground">Balances</span>
-          </button>
-          <TelegramLink />
-        </motion.div>
-
-        {/* Este mes */}
-        <motion.div {...fadeIn} transition={{ delay: 0.1 }} className="grid grid-cols-3 gap-4">
+        {/* Balance del mes */}
+        <motion.div {...fadeIn} transition={{ delay: 0.1 }} className="grid grid-cols-2 gap-4">
           <div className="card-calm p-4 text-center">
-            <p className="text-label">Ganado</p>
+            <p className="text-label">Ingresos</p>
             <p className="text-lg font-semibold text-success mt-1">+{formatMoney(monthlyTotals.income)}</p>
           </div>
           <div className="card-calm p-4 text-center">
-            <p className="text-label">Gastado</p>
+            <p className="text-label">Gastos</p>
             <p className="text-lg font-semibold text-foreground mt-1">–{formatMoney(monthlyTotals.expenses)}</p>
           </div>
-          <div className="card-calm p-4 text-center">
-            <p className="text-label">Te queda</p>
-            <p className={`text-lg font-semibold mt-1 ${quedaPorGastar > 0 ? 'text-primary' : 'text-danger'}`}>{formatMoney(quedaPorGastar)}</p>
-          </div>
         </motion.div>
+        {(() => {
+          const neto = monthlyTotals.income - monthlyTotals.expenses;
+          return (
+            <p className={`text-xs text-center -mt-4 ${neto >= 0 ? 'text-success' : 'text-danger'}`}>
+              Balance neto: {neto >= 0 ? '+' : ''}{formatMoney(neto)}
+            </p>
+          );
+        })()}
 
         {/* Budget bar */}
         {totalBudget > 0 && (
