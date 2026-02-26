@@ -1,8 +1,10 @@
 import { useState } from "react";
 import Layout from "@/components/Layout";
 import QuickAddTransaction from "@/components/QuickAddTransaction";
-import { transactions } from "@/lib/mock-data";
+import TransactionEditor from "@/components/TransactionEditor";
+import { useAppData } from "@/context/AppContext";
 import { cn } from "@/lib/utils";
+import type { Transaction } from "@/lib/mock-data";
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 0 }).format(n);
@@ -11,7 +13,9 @@ function formatMoney(n: number) {
 type FilterType = 'all' | 'expense' | 'income';
 
 export default function Transactions() {
+  const { transactions } = useAppData();
   const [filter, setFilter] = useState<FilterType>('all');
+  const [editTx, setEditTx] = useState<Transaction | null>(null);
 
   const filtered = filter === 'all' ? transactions : transactions.filter(t => t.type === filter);
   const total = filtered.reduce((s, t) => s + (t.type === 'income' ? t.amount : -t.amount), 0);
@@ -24,34 +28,24 @@ export default function Transactions() {
           <p className="text-muted-foreground text-sm mt-1">Febrero 2026</p>
         </div>
 
-        {/* Filters */}
         <div className="flex gap-2">
           {(['all', 'expense', 'income'] as FilterType[]).map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={cn(
-                "px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200",
-                filter === f ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:bg-accent"
-              )}
-            >
+            <button key={f} onClick={() => setFilter(f)}
+              className={cn("px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200",
+                filter === f ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:bg-accent")}>
               {f === 'all' ? 'Todos' : f === 'expense' ? 'Gastos' : 'Ingresos'}
             </button>
           ))}
         </div>
 
-        {/* Total */}
         <div className="card-calm p-4">
           <p className="text-label">Balance del periodo</p>
-          <p className={cn("text-2xl font-semibold mt-1", total >= 0 ? "text-success" : "text-foreground")}>
-            {formatMoney(total)}
-          </p>
+          <p className={cn("text-2xl font-semibold mt-1", total >= 0 ? "text-success" : "text-foreground")}>{formatMoney(total)}</p>
         </div>
 
-        {/* List */}
         <div className="card-calm divide-y divide-border">
           {filtered.map((tx) => (
-            <div key={tx.id} className="flex items-center justify-between p-4">
+            <button key={tx.id} onClick={() => setEditTx(tx)} className="flex items-center justify-between p-4 w-full text-left hover:bg-accent/30 transition-colors">
               <div className="flex items-center gap-3">
                 <span className="text-lg">{tx.categoryIcon}</span>
                 <div>
@@ -65,11 +59,12 @@ export default function Transactions() {
                 </p>
                 <p className="text-xs text-muted-foreground">{tx.date}</p>
               </div>
-            </div>
+            </button>
           ))}
         </div>
       </div>
       <QuickAddTransaction />
+      <TransactionEditor transaction={editTx} open={!!editTx} onOpenChange={(o) => !o && setEditTx(null)} />
     </Layout>
   );
 }
