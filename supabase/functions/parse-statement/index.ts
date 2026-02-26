@@ -89,17 +89,23 @@ El usuario tiene estas categorías existentes: ${existingCategories || "ninguna 
 Para cada movimiento, determina:
 - fecha (formato YYYY-MM-DD)
 - monto (número positivo, sin signo)
-- tipo: "expense" o "income"
+- tipo: "expense", "income" o "transfer"
 - merchant: nombre del comercio o descripción del movimiento
 - category: la categoría más apropiada (usa las existentes del usuario si aplican, o sugiere nuevas)
 - categoryIcon: emoji representativo de la categoría
+- isSubscription: true si parece un cobro recurrente (Netflix, Spotify, gimnasio, seguro, telefonía, internet, etc.)
+- subscriptionName: nombre limpio del servicio si isSubscription es true (ej: "Netflix", "Spotify Premium", "Gym Smart Fit")
 
-Reglas:
-- Los cargos, compras, pagos a comercios, retiros son "expense"
-- Los depósitos, transferencias recibidas, abonos son "income"
+Reglas de clasificación de tipo:
+- "expense": cargos, compras, pagos a comercios, retiros, cobros de servicios
+- "income": depósitos de nómina, ingresos reales de freelance, ventas, intereses ganados
+- "transfer": pagos a tarjeta de crédito, transferencias entre cuentas propias del usuario, abonos a la tarjeta, traspasos internos. IMPORTANTE: los pagos recibidos en una tarjeta de crédito (abonos) son "transfer", NO "income"
+
+Reglas generales:
 - Si no puedes determinar el año, usa 2026
 - Extrae TODOS los movimientos sin excepción
-- Si es una captura de pantalla de app bancaria, extrae los movimientos visibles`;
+- Si es una captura de pantalla de app bancaria, extrae los movimientos visibles
+- Marca isSubscription=true para cobros que parezcan recurrentes (servicios digitales, membresías, seguros, telefonía, etc.)`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -141,10 +147,12 @@ Reglas:
                       properties: {
                         date: { type: "string", description: "Date in YYYY-MM-DD format" },
                         amount: { type: "number", description: "Positive amount" },
-                        type: { type: "string", enum: ["expense", "income"] },
+                        type: { type: "string", enum: ["expense", "income", "transfer"] },
                         merchant: { type: "string", description: "Merchant name or description" },
                         category: { type: "string", description: "Category name" },
                         categoryIcon: { type: "string", description: "Emoji icon for the category" },
+                        isSubscription: { type: "boolean", description: "True if this looks like a recurring subscription charge" },
+                        subscriptionName: { type: "string", description: "Clean name of the subscription service if isSubscription is true" },
                       },
                       required: ["date", "amount", "type", "merchant", "category", "categoryIcon"],
                       additionalProperties: false,
