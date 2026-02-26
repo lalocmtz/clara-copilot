@@ -13,7 +13,7 @@ type TxType = 'expense' | 'income' | 'transfer';
 
 export default function QuickAddTransaction({ open: controlledOpen, onOpenChange }: Props) {
   const { categories, accounts, addTransaction } = useAppData();
-  const activeCats = categories.filter(c => c.active).slice(0, 6);
+  const activeCats = categories.filter(c => c.active && c.type === (type === 'income' ? 'income' : 'expense')).slice(0, 6);
   const topAccounts = accounts.slice(0, 3);
 
   const [internalOpen, setInternalOpen] = useState(false);
@@ -29,9 +29,14 @@ export default function QuickAddTransaction({ open: controlledOpen, onOpenChange
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    if (activeCats.length && !selectedCategory) setSelectedCategory(activeCats[0].id);
+    const filtered = categories.filter(c => c.active && c.type === (type === 'income' ? 'income' : 'expense'));
+    if (filtered.length) setSelectedCategory(filtered[0].id);
+    else setSelectedCategory('');
+  }, [type, categories]);
+
+  useEffect(() => {
     if (topAccounts.length && !selectedAccount) setSelectedAccount(topAccounts[0].id);
-  }, [activeCats, topAccounts]);
+  }, [topAccounts]);
 
   // Auto-select a different destination account
   useEffect(() => {

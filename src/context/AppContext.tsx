@@ -16,6 +16,7 @@ interface Category {
   name: string;
   icon: string;
   active: boolean;
+  type: 'expense' | 'income';
 }
 
 interface AppContextType {
@@ -140,7 +141,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       cost_basis: Number(r.cost_basis), last_updated: r.last_updated,
     });
     const mapCat = (r: any): Category => ({
-      id: r.id, name: r.name, icon: r.icon, active: r.active,
+      id: r.id, name: r.name, icon: r.icon, active: r.active, type: r.type || 'expense',
     });
 
     const txData = (txRes.data || []).map(mapTx);
@@ -182,7 +183,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const uid = user.id;
 
     const catInserts = defaultCategories.map((c, i) => ({
-      user_id: uid, name: c.name, icon: c.icon, active: true, sort_order: i,
+      user_id: uid, name: c.name, icon: c.icon, active: true, sort_order: i, type: c.type || 'expense',
     }));
     await supabase.from("categories").insert(catInserts);
 
@@ -447,10 +448,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const addCategory = useCallback(async (c: Omit<Category, "id" | "active">) => {
     if (!user) return;
     const { data } = await supabase.from("categories").insert({
-      user_id: user.id, name: c.name, icon: c.icon, active: true,
+      user_id: user.id, name: c.name, icon: c.icon, active: true, type: c.type || 'expense',
     }).select().single();
     if (data) {
-      setCategories(prev => [...prev, { id: data.id, name: data.name, icon: data.icon, active: data.active }]);
+      setCategories(prev => [...prev, { id: data.id, name: data.name, icon: data.icon, active: data.active, type: (data as any).type || 'expense' }]);
     }
   }, [user]);
 

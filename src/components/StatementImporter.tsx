@@ -83,8 +83,9 @@ export default function StatementImporter({ open, onOpenChange }: { open: boolea
       }
       setProgress(40);
 
+      const accountNames = accounts.map(a => a.name);
       const { data, error } = await supabase.functions.invoke("parse-statement", {
-        body: { filePath },
+        body: { filePath, accountNames },
       });
 
       setProgress(80);
@@ -159,7 +160,7 @@ export default function StatementImporter({ open, onOpenChange }: { open: boolea
       }
 
       for (const [name, icon] of newCats) {
-        await addCategory({ name, icon });
+        await addCategory({ name, icon, type: 'expense' });
       }
 
       for (const tx of selectedTxs) {

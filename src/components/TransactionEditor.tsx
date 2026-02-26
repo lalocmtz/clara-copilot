@@ -16,7 +16,7 @@ interface Props {
 
 export default function TransactionEditor({ transaction, open, onOpenChange }: Props) {
   const { updateTransaction, deleteTransaction, addSubscription, categories, accounts } = useAppData();
-  const activeCats = categories.filter(c => c.active);
+  const activeCats = categories.filter(c => c.active && c.type === (type === 'income' ? 'income' : 'expense'));
 
   const [type, setType] = useState<TxType>('expense');
   const [amount, setAmount] = useState('');
