@@ -1,29 +1,30 @@
 
-
-# Agregar edicion y eliminacion de categorias con presupuesto asignado
+# Navegacion por mes en la pagina de Transacciones
 
 ## Problema actual
-Las categorias que ya tienen un presupuesto asignado (Comida, Transporte, Servicios, etc.) solo se pueden editar desde el modal de "Categorias" (icono de engrane). Pero en la tabla de presupuestos no hay forma de editarlas o eliminarlas directamente, y el usuario necesita poder hacerlo para limpiar las categorias precargadas.
+- La pagina de Transacciones muestra "Febrero 2026" fijo (hardcoded) y lista TODAS las transacciones sin importar su fecha
+- No hay forma de navegar entre meses para ver gastos de enero, diciembre, etc.
+- Las fechas ya se guardan correctamente al importar estados de cuenta (el importer ya pasa `tx.date` al crear la transaccion)
 
 ## Solucion
-Agregar botones de editar y eliminar directamente en cada fila de la tabla de presupuestos, y tambien asegurar que al eliminar una categoria desde el CategoryManager se elimine su presupuesto asociado.
+Agregar un selector de mes con flechas (igual al que ya existe en el Home) para filtrar transacciones por mes.
 
 ## Cambios
 
-### `src/pages/Budgets.tsx`
-- Agregar un boton de eliminar (icono Trash2) en cada fila de presupuesto existente
-- Al presionar eliminar, mostrar confirmacion inline (igual que en CategoryManager)
-- Al confirmar, llamar a `deleteBudget(id)` para quitar el presupuesto de esa categoria
-- Agregar un boton de editar categoria (icono Pencil) que abre el CategoryManager con esa categoria preseleccionada, o alternativamente, permite renombrar la categoria inline
-- Importar iconos adicionales: `Pencil`, `Trash2`
-
-### Comportamiento esperado
-- Cada fila de presupuesto tendra: nombre de categoria, monto (ya editable con click), gastado, restante, progreso, y un boton de eliminar presupuesto
-- Al eliminar un presupuesto, la categoria vuelve a aparecer en "Categorias sin presupuesto" (si sigue activa)
-- El boton de Categorias (engrane) sigue funcionando igual para editar nombre/icono o eliminar categorias completamente
+### `src/pages/Transactions.tsx`
+- Agregar estado `currentMonth` (Date) inicializado al mes actual
+- Agregar funciones `prevMonth` / `nextMonth` para navegar
+- Reemplazar el texto fijo "Febrero 2026" por el mes dinamico formateado (ej: "Febrero 2026", "Enero 2026")
+- Agregar flechas de navegacion (ChevronLeft / ChevronRight) igual que en el Home
+- Filtrar `transactions` por el mes seleccionado antes de aplicar el filtro de tipo (expense/income/transfer)
+- El balance del periodo se recalcula solo con las transacciones del mes visible
 
 ### Detalle tecnico
-- En la fila de cada budget, agregar un icono Trash2 al final con confirmacion
-- Agregar estado `confirmDeleteBudgetId` para manejar la confirmacion inline
-- La funcion `handleDeleteBudget` ya existe, solo falta exponerla en la UI de cada fila
+- Usar `format(currentMonth, "MMMM yyyy", { locale: es })` de date-fns para formatear el nombre del mes en espanol
+- Filtrar transacciones comparando `tx.date.startsWith("YYYY-MM")` donde YYYY-MM viene de `format(currentMonth, "yyyy-MM")`
+- El flujo es: todas las transacciones -> filtrar por mes -> filtrar por tipo -> mostrar lista y calcular balance
 
+### Que NO cambia
+- El importador de estados de cuenta ya guarda las fechas correctamente
+- La estructura de datos y la base de datos no necesitan cambios
+- Los filtros de tipo (Todos/Gastos/Ingresos/Transferencias) siguen funcionando igual, aplicados despues del filtro de mes
