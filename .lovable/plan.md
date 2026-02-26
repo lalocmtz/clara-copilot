@@ -1,140 +1,115 @@
 
 
-# Clara — Reestructuracion del Dashboard y Nuevas Funcionalidades
+# Clara — Estado Global y CRUD Completo
 
-## Resumen
+## El Problema
 
-Transformar Clara de una app que "muestra datos" a una que **responde preguntas mentales** del usuario en 5 segundos. Los cambios se organizan en 3 fases para mantener estabilidad.
+Actualmente toda la data es estatica importada de `mock-data.ts`. Cada pagina tiene su propio `useState` local sin conexion entre si. Nada persiste, nada se puede editar de verdad.
 
----
+## Solucion: React Context como Estado Global
 
-## Fase 1: Reestructurar el Home (Index.tsx)
-
-### 1.1 — Nuevo bloque: "Tu posicion hoy" (Capital total)
-
-Reemplazar las 3 cards actuales (Disponible / Deuda / Flujo) por un bloque unico protagonista:
-
-- **Capital total** en grande (cuentas liquidas + inversiones - deudas)
-- Debajo, 3 metricas en texto pequeno:
-  - Disponible en banco: $X
-  - Invertido: $X  
-  - Deuda: -$X
-
-### 1.2 — Bloque: "Este mes" (Flujo simple)
-
-Fila horizontal con 3 datos:
-- Ganado este mes: +$X
-- Gastado este mes: -$X  
-- **Te queda por gastar: $X** (presupuesto total - gasto actual)
-
-Este "te queda" es el dato clave que hoy no existe.
-
-### 1.3 — Bloque: "Pagos proximos"
-
-Nuevo bloque mostrando pagos que vienen en los proximos 7-14 dias:
-- Combina suscripciones proximas + fecha de pago de tarjetas de credito
-- Formato: nombre + monto + fecha
-- Reduce ansiedad mas que cualquier grafica
-
-### 1.4 — Reemplazar grafica de linea por barra de presupuesto
-
-Eliminar `LineChart` de recharts. Poner en su lugar:
-- Una barra de progreso unica
-- Texto: "Has usado 62% del presupuesto mensual"
-- Colores segun semaforo (verde/amarillo/rojo)
-
-### 1.5 — Quick Actions visibles
-
-Debajo del capital total, 3 botones horizontales:
-- Registrar (abre QuickAdd)
-- Ajustar presupuesto (navega a /budgets)
-- Actualizar balances (navega a /accounts)
-
-El FAB flotante se mantiene como opcion secundaria.
-
-### 1.6 — Mantener: Top 5 categorias y Ultimos movimientos
-Se conservan tal cual, ya funcionan bien.
+Crear un `AppContext` centralizado que maneje todas las colecciones (transacciones, cuentas, presupuestos, suscripciones, inversiones, categorias) con funciones CRUD. Todos los componentes leen y escriben a traves de este contexto.
 
 ---
 
-## Fase 2: Modulo de Inversiones
+## Archivos Nuevos
 
-### 2.1 — Datos mock
+### 1. `src/context/AppContext.tsx`
+- Context con Provider que inicializa con datos demo
+- Estado: transactions, accounts, budgets, subscriptions, investments, categories
+- Funciones expuestas:
+  - `addTransaction`, `updateTransaction`, `deleteTransaction`
+  - `addAccount`, `updateAccount`, `deleteAccount`
+  - `updateBudget` (editar monto presupuestado por categoria)
+  - `addSubscription`, `updateSubscription`, `deleteSubscription`
+  - `resetAll()` — restablece todo a datos demo originales
+- Hook `useAppData()` para consumir
 
-Agregar a `mock-data.ts`:
-- Interface `Investment` con: id, name, type (crypto/acciones/fondo/negocio), current_value, cost_basis, last_updated
-- Array de inversiones mock (2-3 items)
-- Actualizar `monthlyTotals` para incluir `invested` total
+### 2. `src/components/TransactionEditor.tsx`
+- Modal reutilizable para editar/eliminar una transaccion existente
+- Campos: tipo, monto, categoria, cuenta, notas, merchant
+- Boton eliminar con confirmacion
+- Se abre al hacer click en cualquier transaccion (en Transactions y en Home)
 
-### 2.2 — Pantalla de Cuentas reorganizada
+### 3. `src/components/AccountEditor.tsx`
+- Modal para agregar o editar cuenta
+- Campos: nombre, tipo (debito/ahorro/credito), balance, limite, corte, pago
+- Boton eliminar
 
-Reestructurar `Accounts.tsx` en 3 grupos:
-- **Liquidez** (checking + savings) — total arriba
-- **Credito** (tarjetas) — total deuda arriba
-- **Inversiones** (nuevo) — total invertido arriba
-
-Mostrar resumen en cabecera:
-- Liquidez total: $X
-- Deuda total: -$X
-- Invertido total: $X
-
-### 2.3 — Navegacion
-
-Agregar "Inversiones" como seccion dentro de Cuentas (no pagina nueva), para no agregar complejidad de navegacion.
-
----
-
-## Fase 3: Funcionalidades Faltantes
-
-### 3.1 — Administracion de categorias
-
-Nuevo componente `CategoryManager.tsx`:
-- Accesible desde un boton "Administrar categorias" en la pantalla de Presupuestos
-- Modal/drawer con lista de categorias
-- Acciones: crear nueva, editar nombre/icono, desactivar
-- Selector de emoji simple para iconos
-
-### 3.2 — Presupuesto global editable
-
-En `Budgets.tsx`, agregar arriba:
-- Card con "Presupuesto mensual total": $X
-- Boton para editar el total
-- Calcular automaticamente "Te queda por gastar" desde aqui
-
-### 3.3 — Insights accionables
-
-En `Insights.tsx`, agregar botones contextuales a cada insight:
-- "Ajustar presupuesto" -> navega a /budgets
-- "Reducir categoria" -> navega a /budgets con filtro
-- "Revisar gastos" -> navega a /transactions
-
-### 3.4 — Quick Add: Enter para guardar
-
-En `QuickAddTransaction.tsx`:
-- Agregar `onKeyDown` handler para Enter en el campo de monto
-- Focus automatico ya existe, solo falta el keyboard shortcut
+### 4. `src/components/SubscriptionEditor.tsx`
+- Modal para agregar o editar suscripcion
+- Campos: nombre, monto, frecuencia, proxima fecha
+- Boton eliminar
 
 ---
 
-## Archivos a modificar
+## Archivos a Modificar
 
-| Archivo | Cambio |
-|---|---|
-| `src/lib/mock-data.ts` | Agregar Investment interface, datos mock, actualizar monthlyTotals |
-| `src/pages/Index.tsx` | Reestructurar completamente: capital total, flujo mensual, pagos proximos, barra presupuesto, quick actions |
-| `src/pages/Accounts.tsx` | Reorganizar en grupos (liquidez/credito/inversiones) con totales |
-| `src/pages/Budgets.tsx` | Agregar presupuesto global editable + boton administrar categorias |
-| `src/pages/Insights.tsx` | Agregar botones de accion a cada insight |
-| `src/components/QuickAddTransaction.tsx` | Enter para guardar |
-| `src/components/CategoryManager.tsx` | **Nuevo** — Modal de administracion de categorias |
+### `src/App.tsx`
+- Envolver todo en `<AppProvider>`
+
+### `src/pages/Transactions.tsx`
+- Leer de `useAppData()` en vez de import directo
+- Click en transaccion abre `TransactionEditor`
+- Recalcular totales dinamicamente
+
+### `src/pages/Index.tsx`
+- Leer de `useAppData()` 
+- Click en "ultimos movimientos" abre editor
+- Todos los calculos (capital total, flujo, pagos proximos) se derivan del contexto
+
+### `src/pages/Budgets.tsx`
+- Leer de `useAppData()`
+- Click en presupuesto de cada categoria permite editar el monto (inline o modal)
+- El presupuesto global editable ya existe, conectarlo al contexto
+
+### `src/pages/Accounts.tsx`
+- Leer de `useAppData()`
+- Boton "Agregar cuenta" arriba
+- Click en cada cuenta abre `AccountEditor` para editar balance, datos
+- Click en inversion permite editar valor actual
+
+### `src/pages/Subscriptions.tsx`
+- Leer de `useAppData()`
+- Boton "Agregar suscripcion" arriba
+- Click en suscripcion abre `SubscriptionEditor`
+- Toggle pagado ya funciona, conectar al contexto
+
+### `src/pages/Insights.tsx`
+- Leer de `useAppData()` para calcular insights dinamicamente en vez de texto hardcoded
+
+### `src/components/QuickAddTransaction.tsx`
+- Llamar `addTransaction()` del contexto al guardar (en vez de solo mostrar confirmacion)
+
+### `src/components/CategoryManager.tsx`
+- Conectar al contexto para que los cambios persistan entre paginas
 
 ---
 
-## Lo que NO se hace (intencionalmente)
+## Boton "Restablecer datos demo"
 
-- No se agregan mas graficas
-- No se agregan mas filtros complejos
-- No se agrega la funcionalidad de interpretar texto "250 tacos" (fase 2 AI)
-- No se agrega transferencias entre cuentas (fase 2)
-- No se conecta a backend real (esto seria siguiente paso con Lovable Cloud)
+- En el menu lateral (Layout), agregar un boton discreto "Restablecer demo"
+- Llama `resetAll()` del contexto
+- Muestra toast de confirmacion
+
+---
+
+## Flujo del Usuario Despues de los Cambios
+
+1. **Registrar gasto/ingreso**: FAB o Quick Action en Home -> se agrega al contexto -> aparece en Transacciones y afecta calculos del Home
+2. **Editar transaccion**: Click en cualquier movimiento -> modal de edicion -> cambiar categoria, monto, cuenta, o eliminar
+3. **Editar presupuesto**: En Budgets, click en monto presupuestado de cada categoria -> editar inline -> se recalcula "te queda"
+4. **Agregar cuenta**: En Accounts, boton "Agregar" -> modal -> nueva cuenta aparece en todas partes
+5. **Agregar suscripcion**: En Subscriptions, boton "Agregar" -> modal -> aparece en pagos proximos del Home
+6. **Restablecer**: Boton en sidebar -> todo vuelve a datos demo iniciales
+
+---
+
+## Detalles Tecnicos
+
+- El estado vive en React Context (sin backend por ahora)
+- Se pierde al recargar la pagina (comportamiento esperado hasta conectar Lovable Cloud)
+- Los datos mock de `mock-data.ts` se mantienen como "factory defaults" para el reset
+- Todas las listas se derivan del contexto: `monthlyTotals`, `topCategories`, etc. se calculan con `useMemo`
+- Los modales de edicion siguen el mismo patron visual que QuickAddTransaction (framer-motion, backdrop blur, spring animation)
 
