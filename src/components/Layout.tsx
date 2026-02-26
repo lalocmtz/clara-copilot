@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { Home, ArrowUpDown, PieChart, Wallet, RotateCw, Lightbulb, Menu, X, RefreshCw } from "lucide-react";
+import { Home, ArrowUpDown, PieChart, Wallet, RotateCw, Lightbulb, Menu, X, RefreshCw, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppData } from "@/context/AppContext";
+import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 
 const navItems = [
@@ -16,6 +17,7 @@ const navItems = [
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { resetAll } = useAppData();
+  const { signOut } = useAuth();
   const { toast } = useToast();
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
@@ -52,11 +54,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </NavLink>
           ))}
         </nav>
-        <div className="pt-4 border-t border-sidebar-border flex items-center justify-between">
-          <p className="text-xs text-muted-foreground">Todo claro ✨</p>
-          <button onClick={handleReset} className="p-1.5 rounded-lg hover:bg-accent transition-colors" title="Restablecer datos demo">
-            <RefreshCw className="w-3.5 h-3.5 text-muted-foreground" />
-          </button>
+        <div className="pt-4 border-t border-sidebar-border space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">Todo claro ✨</p>
+            <div className="flex gap-1">
+              <button onClick={handleReset} className="p-1.5 rounded-lg hover:bg-accent transition-colors" title="Restablecer datos demo">
+                <RefreshCw className="w-3.5 h-3.5 text-muted-foreground" />
+              </button>
+              <button onClick={signOut} className="p-1.5 rounded-lg hover:bg-accent transition-colors" title="Cerrar sesión">
+                <LogOut className="w-3.5 h-3.5 text-muted-foreground" />
+              </button>
+            </div>
+          </div>
         </div>
       </aside>
 
