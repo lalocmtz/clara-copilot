@@ -178,7 +178,7 @@ export default function StatementImporter({ open, onOpenChange }: { open: boolea
 
       // Save import history record
       const dates = selectedTxs.map(t => t.date).sort();
-      await supabase.from("statement_imports").insert({
+      const { error: historyError } = await supabase.from("statement_imports").insert({
         user_id: user.id,
         file_name: file?.name || "archivo",
         account_name: selectedAccount,
@@ -186,6 +186,9 @@ export default function StatementImporter({ open, onOpenChange }: { open: boolea
         period_start: dates[0],
         period_end: dates[dates.length - 1],
       });
+      if (historyError) {
+        console.error("Error saving import history:", historyError);
+      }
 
       toast.success(`${selectedTxs.length} movimientos importados correctamente`);
       handleClose(false);

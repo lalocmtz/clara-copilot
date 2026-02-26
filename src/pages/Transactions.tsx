@@ -29,8 +29,9 @@ function formatMonthLabel(key: string) {
 type FilterType = 'all' | 'expense' | 'income' | 'transfer';
 
 export default function Transactions() {
-  const { transactions } = useAppData();
+  const { transactions, accounts } = useAppData();
   const [filter, setFilter] = useState<FilterType>('all');
+  const [accountFilter, setAccountFilter] = useState<string>('all');
   const [editTx, setEditTx] = useState<Transaction | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -47,7 +48,12 @@ export default function Transactions() {
     [transactions, selectedMonth]
   );
 
-  const filtered = filter === 'all' ? monthTxs : monthTxs.filter(t => t.type === filter);
+  const filtered = monthTxs.filter(t => {
+    if (filter !== 'all' && t.type !== filter) return false;
+    if (accountFilter !== 'all' && t.account !== accountFilter) return false;
+    return true;
+  });
+  
   const total = filtered.reduce((s, t) => {
     if (t.type === 'transfer') return s;
     return s + (t.type === 'income' ? t.amount : -t.amount);
@@ -83,14 +89,30 @@ export default function Transactions() {
           </div>
         </div>
 
-        <div className="flex gap-2 flex-wrap">
-          {(['all', 'expense', 'income', 'transfer'] as FilterType[]).map((f) => (
-            <button key={f} onClick={() => setFilter(f)}
+        <div className="space-y-2">
+          <div className="flex gap-2 flex-wrap">
+            {(['all', 'expense', 'income', 'transfer'] as FilterType[]).map((f) => (
+              <button key={f} onClick={() => setFilter(f)}
+                className={cn("px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200",
+                  filter === f ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:bg-accent")}>
+                {f === 'all' ? 'Todos' : f === 'expense' ? 'Gastos' : f === 'income' ? 'Ingresos' : 'Transferencias'}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <button onClick={() => setAccountFilter('all')}
               className={cn("px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200",
-                filter === f ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:bg-accent")}>
-              {f === 'all' ? 'Todos' : f === 'expense' ? 'Gastos' : f === 'income' ? 'Ingresos' : 'Transferencias'}
+                accountFilter === 'all' ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:bg-accent")}>
+              Todas
             </button>
-          ))}
+            {accounts.map((acc) => (
+              <button key={acc.id} onClick={() => setAccountFilter(acc.name)}
+                className={cn("px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200",
+                  accountFilter === acc.name ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:bg-accent")}>
+                {acc.name}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="card-calm p-4">

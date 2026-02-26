@@ -60,7 +60,7 @@ export default function StatementHistory({ open, onOpenChange }: { open: boolean
             <Loader2 className="w-6 h-6 animate-spin text-primary" />
           </div>
         ) : imports.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-8">Aún no has importado ningún estado de cuenta.</p>
+          <p className="text-sm text-muted-foreground text-center py-8">No hay registros. Solo se muestran importaciones realizadas a partir de la activación de esta función.</p>
         ) : (
           <div className="max-h-[400px] overflow-y-auto divide-y divide-border">
             {imports.map((imp) => (
