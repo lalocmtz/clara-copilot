@@ -12,7 +12,7 @@ interface Props {
   onOpenChange: (open: boolean) => void;
 }
 
-const typeLabels: Record<string, string> = { checking: 'Débito', savings: 'Ahorro', credit: 'Crédito' };
+const typeLabels: Record<string, string> = { checking: 'Débito', savings: 'Ahorro', credit: 'Crédito', debt: 'Deuda' };
 
 export default function AccountEditor({ account, isNew, open, onOpenChange }: Props) {
   const { addAccount, updateAccount, deleteAccount } = useAppData();
@@ -41,7 +41,7 @@ export default function AccountEditor({ account, isNew, open, onOpenChange }: Pr
 
   const handleSave = () => {
     if (!name || !balance) return;
-    const bal = type === 'credit' ? -Math.abs(parseFloat(balance)) : parseFloat(balance);
+    const bal = (type === 'credit' || type === 'debt') ? -Math.abs(parseFloat(balance)) : parseFloat(balance);
     const data: Omit<Account, "id"> = {
       name, type, balance: bal, currency: 'MXN',
       ...(type === 'credit' ? {
@@ -84,10 +84,10 @@ export default function AccountEditor({ account, isNew, open, onOpenChange }: Pr
             </div>
 
             {/* Type */}
-            <div className="flex bg-secondary rounded-lg p-1 mb-5">
-              {(['checking', 'savings', 'credit'] as const).map(t => (
+            <div className="grid grid-cols-4 bg-secondary rounded-lg p-1 mb-5">
+              {(['checking', 'savings', 'credit', 'debt'] as const).map(t => (
                 <button key={t} onClick={() => setType(t)}
-                  className={cn("flex-1 py-2 text-sm font-medium rounded-md transition-all", type === t ? "bg-card text-foreground shadow-sm" : "text-muted-foreground")}>
+                  className={cn("py-2 text-sm font-medium rounded-md transition-all", type === t ? "bg-card text-foreground shadow-sm" : "text-muted-foreground")}>
                   {typeLabels[t]}
                 </button>
               ))}
@@ -95,14 +95,17 @@ export default function AccountEditor({ account, isNew, open, onOpenChange }: Pr
 
             {/* Name */}
             <div className="mb-4">
-              <label className="text-label mb-2 block">Nombre</label>
-              <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Ej: BBVA Débito"
+              <label className="text-label mb-2 block">{type === 'debt' ? 'Descripción de la deuda' : 'Nombre'}</label>
+              <input type="text" value={name} onChange={e => setName(e.target.value)}
+                placeholder={type === 'debt' ? 'Ej: Le debo a Juan' : 'Ej: BBVA Débito'}
                 className="w-full py-2 px-3 rounded-lg bg-secondary text-foreground text-sm outline-none placeholder:text-muted-foreground/50 focus:ring-2 focus:ring-ring/20" />
             </div>
 
             {/* Balance */}
             <div className="mb-4">
-              <label className="text-label mb-2 block">{type === 'credit' ? 'Saldo (deuda)' : 'Saldo'}</label>
+              <label className="text-label mb-2 block">
+                {type === 'credit' ? 'Saldo (deuda)' : type === 'debt' ? 'Monto que debes' : 'Saldo'}
+              </label>
               <input type="number" value={balance} onChange={e => setBalance(e.target.value)} placeholder="0"
                 className="w-full py-2 px-3 rounded-lg bg-secondary text-foreground text-sm outline-none placeholder:text-muted-foreground/50 focus:ring-2 focus:ring-ring/20" />
             </div>
