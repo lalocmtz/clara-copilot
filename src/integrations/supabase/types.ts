@@ -281,6 +281,7 @@ export type Database = {
           id: string
           merchant: string | null
           notes: string | null
+          to_account: string | null
           type: string
           user_id: string
         }
@@ -295,6 +296,7 @@ export type Database = {
           id?: string
           merchant?: string | null
           notes?: string | null
+          to_account?: string | null
           type: string
           user_id: string
         }
@@ -309,6 +311,7 @@ export type Database = {
           id?: string
           merchant?: string | null
           notes?: string | null
+          to_account?: string | null
           type?: string
           user_id?: string
         }

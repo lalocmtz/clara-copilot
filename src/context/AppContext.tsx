@@ -116,6 +116,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       id: r.id, type: r.type, amount: Number(r.amount), currency: r.currency,
       date: r.date, category: r.category, categoryIcon: r.category_icon,
       account: r.account, notes: r.notes, merchant: r.merchant,
+      toAccount: r.to_account ?? undefined,
     });
     const mapAcc = (r: any): Account => ({
       id: r.id, name: r.name, type: r.type, balance: Number(r.balance), currency: r.currency,
@@ -231,42 +232,55 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const addTransaction = useCallback(async (t: Omit<Transaction, "id">) => {
     if (!user) return;
-    const { data, error } = await supabase.from("transactions").insert({
+    const insertData: any = {
       user_id: user.id, type: t.type, amount: t.amount, currency: t.currency, date: t.date,
       category: t.category, category_icon: t.categoryIcon, account: t.account,
       notes: t.notes ?? null, merchant: t.merchant ?? null,
-    }).select().single();
+    };
+    if (t.type === 'transfer' && t.toAccount) insertData.to_account = t.toAccount;
+    const { data, error } = await supabase.from("transactions").insert(insertData).select().single();
     if (data && !error) {
       setTransactions(prev => [{
         id: data.id, type: data.type as Transaction['type'], amount: Number(data.amount), currency: data.currency,
         date: data.date, category: data.category, categoryIcon: data.category_icon,
         account: data.account, notes: data.notes ?? undefined, merchant: data.merchant ?? undefined,
+        toAccount: (data as any).to_account ?? undefined,
       }, ...prev]);
-      // Update account balance: expense subtracts, income adds
-      const delta = t.type === 'income' ? t.amount : -t.amount;
-      await updateAccountBalance(t.account, delta);
+      if (t.type === 'transfer' && t.toAccount) {
+        // Transfer: subtract from origin, add to destination
+        await updateAccountBalance(t.account, -t.amount);
+        await updateAccountBalance(t.toAccount, t.amount);
+      } else {
+        const delta = t.type === 'income' ? t.amount : -t.amount;
+        await updateAccountBalance(t.account, delta);
+      }
     }
   }, [user, updateAccountBalance]);
 
   const updateTransaction = useCallback(async (id: string, t: Partial<Transaction>) => {
-    // Revert old impact and apply new impact
     const oldTx = transactions.find(tx => tx.id === id);
     if (oldTx) {
-      // Revert old: if was expense, add back; if was income, subtract
-      const oldDelta = oldTx.type === 'income' ? -oldTx.amount : oldTx.amount;
-      await updateAccountBalance(oldTx.account, oldDelta);
+      // Revert old impact
+      if (oldTx.type === 'transfer' && oldTx.toAccount) {
+        await updateAccountBalance(oldTx.account, oldTx.amount); // give back to origin
+        await updateAccountBalance(oldTx.toAccount, -oldTx.amount); // take back from dest
+      } else {
+        const oldDelta = oldTx.type === 'income' ? -oldTx.amount : oldTx.amount;
+        await updateAccountBalance(oldTx.account, oldDelta);
+      }
 
       // Apply new impact
       const newType = t.type ?? oldTx.type;
       const newAmount = t.amount ?? oldTx.amount;
       const newAccount = t.account ?? oldTx.account;
-      const newDelta = newType === 'income' ? newAmount : -newAmount;
+      const newToAccount = t.toAccount ?? oldTx.toAccount;
 
-      if (newAccount !== oldTx.account) {
-        // Account changed — apply to new account (old was already reverted above)
-        await updateAccountBalance(newAccount, newDelta);
+      if (newType === 'transfer' && newToAccount) {
+        await updateAccountBalance(newAccount, -newAmount);
+        await updateAccountBalance(newToAccount, newAmount);
       } else {
-        await updateAccountBalance(oldTx.account, newDelta);
+        const newDelta = newType === 'income' ? newAmount : -newAmount;
+        await updateAccountBalance(newAccount, newDelta);
       }
     }
 
@@ -278,16 +292,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (t.account !== undefined) updates.account = t.account;
     if (t.notes !== undefined) updates.notes = t.notes;
     if (t.merchant !== undefined) updates.merchant = t.merchant;
+    if (t.toAccount !== undefined) updates.to_account = t.toAccount;
     await supabase.from("transactions").update(updates).eq("id", id);
     setTransactions(prev => prev.map(tx => tx.id === id ? { ...tx, ...t } : tx));
   }, [transactions, updateAccountBalance]);
 
   const deleteTransaction = useCallback(async (id: string) => {
-    // Revert impact before deleting
     const tx = transactions.find(t => t.id === id);
     if (tx) {
-      const revertDelta = tx.type === 'income' ? -tx.amount : tx.amount;
-      await updateAccountBalance(tx.account, revertDelta);
+      if (tx.type === 'transfer' && tx.toAccount) {
+        await updateAccountBalance(tx.account, tx.amount); // give back to origin
+        await updateAccountBalance(tx.toAccount, -tx.amount); // take back from dest
+      } else {
+        const revertDelta = tx.type === 'income' ? -tx.amount : tx.amount;
+        await updateAccountBalance(tx.account, revertDelta);
+      }
     }
     await supabase.from("transactions").delete().eq("id", id);
     setTransactions(prev => prev.filter(t => t.id !== id));

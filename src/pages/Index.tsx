@@ -236,8 +236,8 @@ export default function Index() {
                       <p className="text-xs text-muted-foreground">{tx.date}</p>
                     </div>
                   </div>
-                  <span className={`text-sm font-medium ${tx.type === 'income' ? 'text-success' : 'text-foreground'}`}>
-                    {tx.type === 'expense' ? '–' : '+'} {formatMoney(tx.amount)}
+                  <span className={`text-sm font-medium ${tx.type === 'income' ? 'text-success' : tx.type === 'transfer' ? 'text-warning' : 'text-foreground'}`}>
+                    {tx.type === 'expense' ? '–' : tx.type === 'transfer' ? '↔' : '+'} {formatMoney(tx.amount)}
                   </span>
                 </button>
               ))}
