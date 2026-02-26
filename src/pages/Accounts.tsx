@@ -2,9 +2,10 @@ import { useState } from "react";
 import Layout from "@/components/Layout";
 import QuickAddTransaction from "@/components/QuickAddTransaction";
 import AccountEditor from "@/components/AccountEditor";
+import InvestmentEditor from "@/components/InvestmentEditor";
 import { useAppData } from "@/context/AppContext";
 import { CreditCard, Landmark, PiggyBank, TrendingUp, BarChart3, Plus } from "lucide-react";
-import type { Account } from "@/lib/mock-data";
+import type { Account, Investment } from "@/lib/mock-data";
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 0 }).format(Math.abs(n));
@@ -17,6 +18,8 @@ export default function Accounts() {
   const { accounts, investments } = useAppData();
   const [editAccount, setEditAccount] = useState<Account | null>(null);
   const [isNew, setIsNew] = useState(false);
+  const [editInvestment, setEditInvestment] = useState<Investment | null>(null);
+  const [isNewInvestment, setIsNewInvestment] = useState(false);
 
   const liquid = accounts.filter(a => a.type !== 'credit');
   const credit = accounts.filter(a => a.type === 'credit');
@@ -26,6 +29,8 @@ export default function Accounts() {
 
   const openNew = () => { setEditAccount(null); setIsNew(true); };
   const openEdit = (acc: Account) => { setEditAccount(acc); setIsNew(false); };
+  const openNewInvestment = () => { setEditInvestment(null); setIsNewInvestment(true); };
+  const openEditInvestment = (inv: Investment) => { setEditInvestment(inv); setIsNewInvestment(false); };
 
   return (
     <Layout>
@@ -92,25 +97,33 @@ export default function Accounts() {
 
         {/* Inversiones */}
         <div>
-          <h3 className="text-sm font-medium text-muted-foreground mb-3">Inversiones</h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-muted-foreground">Inversiones</h3>
+            <button onClick={openNewInvestment} className="flex items-center gap-1 text-xs text-primary font-medium hover:opacity-80 transition-opacity">
+              <Plus className="w-3.5 h-3.5" /> Agregar
+            </button>
+          </div>
           <div className="grid gap-3">
             {investments.map((inv) => {
               const Icon = investIcons[inv.type] || TrendingUp;
               const gain = inv.current_value - inv.cost_basis;
-              const gainPct = Math.round((gain / inv.cost_basis) * 100);
+              const gainPct = inv.cost_basis > 0 ? Math.round((gain / inv.cost_basis) * 100) : 0;
               return (
-                <div key={inv.id} className="card-calm p-5">
+                <button key={inv.id} onClick={() => openEditInvestment(inv)} className="card-calm p-5 w-full text-left hover:bg-accent/30 transition-colors">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center"><Icon className="w-5 h-5 text-muted-foreground" /></div>
-                      <div><p className="font-medium text-foreground">{inv.name}</p><p className="text-xs text-muted-foreground capitalize">{inv.type}</p></div>
+                      <div>
+                        <p className="font-medium text-foreground">{inv.name}</p>
+                        <p className="text-xs text-muted-foreground capitalize">{inv.type} · {inv.last_updated}</p>
+                      </div>
                     </div>
                     <div className="text-right">
                       <p className="text-2xl font-semibold text-foreground">{formatMoney(inv.current_value)}</p>
                       <p className={`text-xs font-medium ${gain >= 0 ? 'text-success' : 'text-danger'}`}>{gain >= 0 ? '+' : ''}{gainPct}%</p>
                     </div>
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -118,6 +131,7 @@ export default function Accounts() {
       </div>
       <QuickAddTransaction />
       <AccountEditor account={editAccount} isNew={isNew} open={!!editAccount || isNew} onOpenChange={(o) => { if (!o) { setEditAccount(null); setIsNew(false); } }} />
+      <InvestmentEditor investment={editInvestment} isNew={isNewInvestment} open={!!editInvestment || isNewInvestment} onOpenChange={(o) => { if (!o) { setEditInvestment(null); setIsNewInvestment(false); } }} />
     </Layout>
   );
 }
