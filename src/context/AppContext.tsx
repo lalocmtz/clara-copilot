@@ -221,6 +221,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // === CRUD ===
 
+  const updateAccountBalance = useCallback(async (accountName: string, delta: number) => {
+    const acc = accounts.find(a => a.name === accountName);
+    if (!acc) return;
+    const newBalance = acc.balance + delta;
+    await supabase.from("accounts").update({ balance: newBalance }).eq("id", acc.id);
+    setAccounts(prev => prev.map(a => a.id === acc.id ? { ...a, balance: newBalance } : a));
+  }, [accounts]);
+
   const addTransaction = useCallback(async (t: Omit<Transaction, "id">) => {
     if (!user) return;
     const { data, error } = await supabase.from("transactions").insert({
@@ -234,10 +242,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
         date: data.date, category: data.category, categoryIcon: data.category_icon,
         account: data.account, notes: data.notes ?? undefined, merchant: data.merchant ?? undefined,
       }, ...prev]);
+      // Update account balance: expense subtracts, income adds
+      const delta = t.type === 'income' ? t.amount : -t.amount;
+      await updateAccountBalance(t.account, delta);
     }
-  }, [user]);
+  }, [user, updateAccountBalance]);
 
   const updateTransaction = useCallback(async (id: string, t: Partial<Transaction>) => {
+    // Revert old impact and apply new impact
+    const oldTx = transactions.find(tx => tx.id === id);
+    if (oldTx) {
+      // Revert old: if was expense, add back; if was income, subtract
+      const oldDelta = oldTx.type === 'income' ? -oldTx.amount : oldTx.amount;
+      await updateAccountBalance(oldTx.account, oldDelta);
+
+      // Apply new impact
+      const newType = t.type ?? oldTx.type;
+      const newAmount = t.amount ?? oldTx.amount;
+      const newAccount = t.account ?? oldTx.account;
+      const newDelta = newType === 'income' ? newAmount : -newAmount;
+
+      if (newAccount !== oldTx.account) {
+        // Account changed — apply to new account (old was already reverted above)
+        await updateAccountBalance(newAccount, newDelta);
+      } else {
+        await updateAccountBalance(oldTx.account, newDelta);
+      }
+    }
+
     const updates: any = {};
     if (t.type !== undefined) updates.type = t.type;
     if (t.amount !== undefined) updates.amount = t.amount;
@@ -248,12 +280,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (t.merchant !== undefined) updates.merchant = t.merchant;
     await supabase.from("transactions").update(updates).eq("id", id);
     setTransactions(prev => prev.map(tx => tx.id === id ? { ...tx, ...t } : tx));
-  }, []);
+  }, [transactions, updateAccountBalance]);
 
   const deleteTransaction = useCallback(async (id: string) => {
+    // Revert impact before deleting
+    const tx = transactions.find(t => t.id === id);
+    if (tx) {
+      const revertDelta = tx.type === 'income' ? -tx.amount : tx.amount;
+      await updateAccountBalance(tx.account, revertDelta);
+    }
     await supabase.from("transactions").delete().eq("id", id);
-    setTransactions(prev => prev.filter(tx => tx.id !== id));
-  }, []);
+    setTransactions(prev => prev.filter(t => t.id !== id));
+  }, [transactions, updateAccountBalance]);
 
   const addAccount = useCallback(async (a: Omit<Account, "id">) => {
     if (!user) return;
