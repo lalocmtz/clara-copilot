@@ -29,7 +29,7 @@ serve(async (req) => {
     }
     const userId = claimsData.claims.sub;
 
-    const { filePath } = await req.json();
+    const { filePath, accountNames } = await req.json();
     if (!filePath) {
       return new Response(JSON.stringify({ error: "filePath is required" }), { status: 400, headers: corsHeaders });
     }
@@ -47,10 +47,16 @@ serve(async (req) => {
     // Get user's existing categories for context
     const { data: categoriesData } = await supabase
       .from("categories")
-      .select("name, icon")
+      .select("name, icon, type")
       .eq("user_id", userId);
 
-    const existingCategories = (categoriesData || []).map((c: any) => `${c.icon} ${c.name}`).join(", ");
+    const existingCategories = (categoriesData || []).map((c: any) => `${c.icon} ${c.name} (${c.type})`).join(", ");
+
+    // Build account names context for transfer detection
+    const userAccountNames = Array.isArray(accountNames) ? accountNames : [];
+    const accountNamesContext = userAccountNames.length > 0
+      ? `\n\nCuentas del usuario: ${userAccountNames.join(", ")}. Si detectas un movimiento que menciona alguna de estas cuentas (ej: "SPEI a ${userAccountNames[0]}", "transferencia ${userAccountNames[1]}", "pago ${userAccountNames[0]}"), clasifícalo como "transfer".`
+      : "";
 
     // Convert file to base64 in chunks to avoid call stack overflow
     const arrayBuffer = await fileData.arrayBuffer();
@@ -85,6 +91,7 @@ serve(async (req) => {
 Analiza el documento/imagen proporcionado y extrae TODOS los movimientos que encuentres.
 
 El usuario tiene estas categorías existentes: ${existingCategories || "ninguna aún"}
+${accountNamesContext}
 
 Para cada movimiento, determina:
 - fecha (formato YYYY-MM-DD)
@@ -99,7 +106,7 @@ Para cada movimiento, determina:
 Reglas de clasificación de tipo:
 - "expense": cargos, compras, pagos a comercios, retiros, cobros de servicios
 - "income": depósitos de nómina, ingresos reales de freelance, ventas, intereses ganados
-- "transfer": pagos a tarjeta de crédito, transferencias entre cuentas propias del usuario, abonos a la tarjeta, traspasos internos. IMPORTANTE: los pagos recibidos en una tarjeta de crédito (abonos) son "transfer", NO "income"
+- "transfer": pagos a tarjeta de crédito, transferencias entre cuentas propias del usuario, abonos a la tarjeta, traspasos internos. IMPORTANTE: los pagos recibidos en una tarjeta de crédito (abonos) son "transfer", NO "income". Si el movimiento menciona el nombre de alguna cuenta del usuario, es "transfer".
 
 Reglas generales:
 - Si no puedes determinar el año, usa 2026

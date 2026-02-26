@@ -69,16 +69,17 @@ export const accounts: Account[] = [
 ];
 
 export const categories = [
-  { id: '1', name: 'Comida', icon: '🍽' },
-  { id: '2', name: 'Transporte', icon: '🚗' },
-  { id: '3', name: 'Servicios', icon: '💡' },
-  { id: '4', name: 'Ads', icon: '📢' },
-  { id: '5', name: 'Suscripciones', icon: '🔄' },
-  { id: '6', name: 'Ocio', icon: '🎮' },
-  { id: '7', name: 'Salud', icon: '🏥' },
-  { id: '8', name: 'Ventas', icon: '💰' },
-  { id: '9', name: 'Freelance', icon: '💻' },
-  { id: '10', name: 'Otros', icon: '📦' },
+  { id: '1', name: 'Comida', icon: '🍽', type: 'expense' as const },
+  { id: '2', name: 'Transporte', icon: '🚗', type: 'expense' as const },
+  { id: '3', name: 'Servicios', icon: '💡', type: 'expense' as const },
+  { id: '4', name: 'Ads', icon: '📢', type: 'expense' as const },
+  { id: '5', name: 'Suscripciones', icon: '🔄', type: 'expense' as const },
+  { id: '6', name: 'Ocio', icon: '🎮', type: 'expense' as const },
+  { id: '7', name: 'Salud', icon: '🏥', type: 'expense' as const },
+  { id: '8', name: 'Otros', icon: '📦', type: 'expense' as const },
+  { id: '9', name: 'Nómina', icon: '💼', type: 'income' as const },
+  { id: '10', name: 'Freelance', icon: '💻', type: 'income' as const },
+  { id: '11', name: 'Ventas', icon: '💰', type: 'income' as const },
 ];
 
 export const investments: Investment[] = [
