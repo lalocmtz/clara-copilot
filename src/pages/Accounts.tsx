@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { formatDistanceToNow } from "date-fns";
+import { es } from "date-fns/locale";
 import Layout from "@/components/Layout";
 import QuickAddTransaction from "@/components/QuickAddTransaction";
 import AccountEditor from "@/components/AccountEditor";
@@ -160,6 +162,9 @@ export default function Accounts() {
                   <div className="flex-1 text-left min-w-0">
                     <p className="text-sm font-medium text-foreground truncate">{acc.name}</p>
                     <p className="text-xs text-muted-foreground">{acc.type === 'checking' ? 'Débito' : 'Ahorro'}</p>
+                    {acc.balanceUpdatedAt && (
+                      <p className="text-xs text-muted-foreground/70">Actualizado: {formatDistanceToNow(new Date(acc.balanceUpdatedAt), { addSuffix: true, locale: es })}</p>
+                    )}
                   </div>
                   <p className="text-lg font-semibold text-foreground">{formatMoney(acc.balance)}</p>
                 </button>
@@ -185,6 +190,9 @@ export default function Accounts() {
                         {acc.cutoffDate && <span>Corte: {acc.cutoffDate}</span>}
                         {acc.paymentDate && <span>Pago: {acc.paymentDate}</span>}
                       </div>
+                      {acc.balanceUpdatedAt && (
+                        <p className="text-xs text-muted-foreground/70">Actualizado: {formatDistanceToNow(new Date(acc.balanceUpdatedAt), { addSuffix: true, locale: es })}</p>
+                      )}
                     </div>
                     <div className="text-right flex-shrink-0">
                       <p className="text-lg font-semibold text-danger">–{formatMoney(acc.balance)}</p>
@@ -212,6 +220,9 @@ export default function Accounts() {
                 <div className="flex-1 text-left min-w-0">
                   <p className="text-sm font-medium text-foreground truncate">{acc.name}</p>
                   <p className="text-xs text-muted-foreground">Deuda externa</p>
+                  {acc.balanceUpdatedAt && (
+                    <p className="text-xs text-muted-foreground/70">Actualizado: {formatDistanceToNow(new Date(acc.balanceUpdatedAt), { addSuffix: true, locale: es })}</p>
+                  )}
                 </div>
                 <p className="text-lg font-semibold text-danger">–{formatMoney(acc.balance)}</p>
               </button>

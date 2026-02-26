@@ -23,16 +23,32 @@ interface ParsedTransaction {
   subscriptionName?: string;
   selected: boolean;
   addedAsSub?: boolean;
+  reconcileStatus?: 'duplicate' | 'discrepancy' | 'new';
 }
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", minimumFractionDigits: 0 }).format(n);
 }
 
+function normalizeStr(s: string) {
+  return s.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function isSimilarMerchant(a: string, b: string): boolean {
+  const na = normalizeStr(a);
+  const nb = normalizeStr(b);
+  if (!na || !nb) return false;
+  return na.includes(nb) || nb.includes(na);
+}
+
+function dateDiffDays(d1: string, d2: string): number {
+  return Math.abs(new Date(d1).getTime() - new Date(d2).getTime()) / (1000 * 60 * 60 * 24);
+}
+
 type Step = "upload" | "processing" | "preview" | "importing";
 
 export default function StatementImporter({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
-  const { accounts, addTransaction, categories, addCategory, addSubscription } = useAppData();
+  const { accounts, addTransaction, categories, addCategory, addSubscription, transactions: existingTransactions } = useAppData();
   const { user } = useAuth();
   const [step, setStep] = useState<Step>("upload");
   const [selectedAccount, setSelectedAccount] = useState<string>("");
@@ -63,6 +79,45 @@ export default function StatementImporter({ open, onOpenChange }: { open: boolea
     e.preventDefault();
     const f = e.dataTransfer.files[0];
     if (f) setFile(f);
+  };
+
+  const reconcileTransactions = (parsedTxs: any[]): ParsedTransaction[] => {
+    // Get existing transactions for the same account
+    const accountTxs = existingTransactions.filter(t => t.account === selectedAccount);
+
+    return parsedTxs.map((t: any) => {
+      const base: ParsedTransaction = {
+        ...t,
+        selected: t.type !== "transfer",
+        addedAsSub: false,
+      };
+
+      // Find matching existing transaction
+      const match = accountTxs.find(existing => {
+        const dateClose = dateDiffDays(existing.date, t.date) <= 1;
+        const sameAmount = existing.amount === t.amount;
+        const similarAmount = Math.abs(existing.amount - t.amount) / Math.max(existing.amount, t.amount) < 0.05;
+        const merchantMatch = isSimilarMerchant(existing.merchant || existing.category, t.merchant || '');
+
+        if (dateClose && sameAmount && merchantMatch) return true;
+        if (dateClose && similarAmount && merchantMatch) return true;
+        return false;
+      });
+
+      if (match) {
+        const exactAmount = match.amount === t.amount;
+        if (exactAmount) {
+          // Duplicate - deselect
+          return { ...base, selected: false, reconcileStatus: 'duplicate' as const };
+        } else {
+          // Discrepancy
+          return { ...base, selected: true, reconcileStatus: 'discrepancy' as const };
+        }
+      }
+
+      // New transaction - mark as new
+      return { ...base, selected: true, reconcileStatus: 'new' as const };
+    });
   };
 
   const handleProcess = async () => {
@@ -100,11 +155,8 @@ export default function StatementImporter({ open, onOpenChange }: { open: boolea
         return;
       }
 
-      setParsed(data.transactions.map((t: any) => ({
-        ...t,
-        selected: t.type !== "transfer", // transfers deselected by default
-        addedAsSub: false,
-      })));
+      const reconciled = reconcileTransactions(data.transactions);
+      setParsed(reconciled);
       setProgress(100);
       setStep("preview");
     } catch (err: any) {
@@ -119,8 +171,8 @@ export default function StatementImporter({ open, onOpenChange }: { open: boolea
   };
 
   const toggleAll = () => {
-    const allSelected = parsed.every((t) => t.selected);
-    setParsed((prev) => prev.map((t) => ({ ...t, selected: !allSelected })));
+    const allSelected = parsed.filter(t => t.reconcileStatus !== 'duplicate').every((t) => t.selected);
+    setParsed((prev) => prev.map((t) => t.reconcileStatus === 'duplicate' ? t : { ...t, selected: !allSelected }));
   };
 
   const handleAddSubscription = async (tx: ParsedTransaction, idx: number) => {
@@ -163,7 +215,9 @@ export default function StatementImporter({ open, onOpenChange }: { open: boolea
         await addCategory({ name, icon, type: 'expense' });
       }
 
+      // All imported transactions skip balance update and new ones are pending
       for (const tx of selectedTxs) {
+        const status = tx.reconcileStatus === 'new' ? 'pending' : 'confirmed';
         await addTransaction({
           type: tx.type,
           amount: tx.amount,
@@ -173,7 +227,8 @@ export default function StatementImporter({ open, onOpenChange }: { open: boolea
           categoryIcon: tx.type === "transfer" ? "↔" : tx.categoryIcon,
           account: selectedAccount,
           merchant: tx.merchant,
-        });
+          status,
+        }, { skipBalanceUpdate: true });
       }
 
       // Save import history record
@@ -190,7 +245,7 @@ export default function StatementImporter({ open, onOpenChange }: { open: boolea
         console.error("Error saving import history:", historyError);
       }
 
-      toast.success(`${selectedTxs.length} movimientos importados correctamente`);
+      toast.success(`${selectedTxs.length} movimientos importados (sin afectar saldos)`);
       handleClose(false);
     } catch (err: any) {
       console.error("Import confirm error:", err);
@@ -205,7 +260,18 @@ export default function StatementImporter({ open, onOpenChange }: { open: boolea
     return null;
   };
 
+  const reconcileBadge = (status?: string) => {
+    if (status === 'duplicate') return <Badge variant="outline" className="text-xs bg-muted text-muted-foreground border-border">Ya registrado</Badge>;
+    if (status === 'discrepancy') return <Badge variant="outline" className="text-xs bg-warning/10 text-warning border-warning/30">Discrepancia</Badge>;
+    if (status === 'new') return <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/30">Nuevo</Badge>;
+    return null;
+  };
+
   const acceptedTypes = ".pdf,.png,.jpg,.jpeg,.webp";
+
+  const duplicateCount = parsed.filter(t => t.reconcileStatus === 'duplicate').length;
+  const newCount = parsed.filter(t => t.reconcileStatus === 'new').length;
+  const discrepancyCount = parsed.filter(t => t.reconcileStatus === 'discrepancy').length;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -302,28 +368,32 @@ export default function StatementImporter({ open, onOpenChange }: { open: boolea
               </div>
             </div>
 
-            {/* Info about transfers */}
-            {parsed.some(t => t.type === "transfer") && (
-              <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3">
-                💡 Las transferencias (pagos a tarjeta, traspasos) están deseleccionadas para evitar duplicar ingresos. Puedes seleccionarlas manualmente si lo necesitas.
-              </p>
-            )}
+            {/* Reconciliation info */}
+            <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3 space-y-1">
+              <p>📋 <strong>Reconciliación:</strong> {duplicateCount} ya registrados · {discrepancyCount} con discrepancia · {newCount} nuevos</p>
+              <p>💡 Los movimientos importados <strong>no modifican los saldos</strong> de tus cuentas. Los nuevos quedan como "Pendiente" para tu revisión.</p>
+            </div>
 
             {/* Transaction list */}
             <div className="max-h-[400px] overflow-y-auto border rounded-lg divide-y divide-border">
               <div className="flex items-center gap-3 p-3 bg-muted/50 sticky top-0">
-                <Checkbox checked={parsed.every((t) => t.selected)} onCheckedChange={toggleAll} />
+                <Checkbox checked={parsed.filter(t => t.reconcileStatus !== 'duplicate').every((t) => t.selected)} onCheckedChange={toggleAll} />
                 <span className="text-xs font-medium text-muted-foreground flex-1">Movimiento</span>
                 <span className="text-xs font-medium text-muted-foreground w-24 text-right">Monto</span>
               </div>
               {parsed.map((tx, idx) => (
-                <div key={idx} className={cn("flex items-center gap-3 p-3 transition-colors", !tx.selected && "opacity-40")}>
+                <div key={idx} className={cn(
+                  "flex items-center gap-3 p-3 transition-colors",
+                  !tx.selected && "opacity-40",
+                  tx.reconcileStatus === 'duplicate' && "bg-muted/30",
+                )}>
                   <Checkbox checked={tx.selected} onCheckedChange={() => toggleTransaction(idx)} />
                   <span className="text-lg">{tx.categoryIcon}</span>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-sm font-medium text-foreground truncate">{tx.merchant}</p>
                       {typeBadge(tx.type)}
+                      {reconcileBadge(tx.reconcileStatus)}
                       {tx.isSubscription && (
                         <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/30">Suscripción</Badge>
                       )}

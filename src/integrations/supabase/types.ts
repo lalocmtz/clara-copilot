@@ -17,6 +17,7 @@ export type Database = {
       accounts: {
         Row: {
           balance: number
+          balance_updated_at: string | null
           created_at: string
           credit_limit: number | null
           currency: string
@@ -30,6 +31,7 @@ export type Database = {
         }
         Insert: {
           balance?: number
+          balance_updated_at?: string | null
           created_at?: string
           credit_limit?: number | null
           currency?: string
@@ -43,6 +45,7 @@ export type Database = {
         }
         Update: {
           balance?: number
+          balance_updated_at?: string | null
           created_at?: string
           credit_limit?: number | null
           currency?: string
@@ -317,6 +320,7 @@ export type Database = {
           id: string
           merchant: string | null
           notes: string | null
+          status: string
           to_account: string | null
           type: string
           user_id: string
@@ -332,6 +336,7 @@ export type Database = {
           id?: string
           merchant?: string | null
           notes?: string | null
+          status?: string
           to_account?: string | null
           type: string
           user_id: string
@@ -347,6 +352,7 @@ export type Database = {
           id?: string
           merchant?: string | null
           notes?: string | null
+          status?: string
           to_account?: string | null
           type?: string
           user_id?: string

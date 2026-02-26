@@ -220,6 +220,21 @@ export default function TransactionEditor({ transaction, open, onOpenChange }: P
               </button>
             )}
 
+            {/* Confirm pending */}
+            {transaction.status === 'pending' && (
+              <button
+                onClick={() => {
+                  updateTransaction(transaction.id, { status: 'confirmed' });
+                  toast.success('Movimiento confirmado');
+                  onOpenChange(false);
+                }}
+                className="w-full py-3 px-4 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 mb-4 bg-success/10 text-success hover:bg-success/20"
+              >
+                <Check className="w-4 h-4" />
+                Confirmar movimiento
+              </button>
+            )}
+
             {/* Actions */}
             <div className="flex gap-3">
               <button onClick={handleDelete}
