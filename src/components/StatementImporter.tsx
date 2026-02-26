@@ -175,6 +175,17 @@ export default function StatementImporter({ open, onOpenChange }: { open: boolea
         });
       }
 
+      // Save import history record
+      const dates = selectedTxs.map(t => t.date).sort();
+      await supabase.from("statement_imports").insert({
+        user_id: user.id,
+        file_name: file?.name || "archivo",
+        account_name: selectedAccount,
+        transactions_count: selectedTxs.length,
+        period_start: dates[0],
+        period_end: dates[dates.length - 1],
+      });
+
       toast.success(`${selectedTxs.length} movimientos importados correctamente`);
       handleClose(false);
     } catch (err: any) {

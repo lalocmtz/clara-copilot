@@ -176,6 +176,39 @@ export type Database = {
         }
         Relationships: []
       }
+      statement_imports: {
+        Row: {
+          account_name: string
+          created_at: string
+          file_name: string
+          id: string
+          period_end: string | null
+          period_start: string | null
+          transactions_count: number
+          user_id: string
+        }
+        Insert: {
+          account_name: string
+          created_at?: string
+          file_name: string
+          id?: string
+          period_end?: string | null
+          period_start?: string | null
+          transactions_count?: number
+          user_id: string
+        }
+        Update: {
+          account_name?: string
+          created_at?: string
+          file_name?: string
+          id?: string
+          period_end?: string | null
+          period_start?: string | null
+          transactions_count?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       subscriptions: {
         Row: {
           amount: number
