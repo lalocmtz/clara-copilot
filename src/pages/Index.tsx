@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import Layout from "@/components/Layout";
 import QuickAddTransaction from "@/components/QuickAddTransaction";
-import { monthlyTotals, topCategories, transactions, spendingVsBudget, budgets } from "@/lib/mock-data";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { monthlyTotals, topCategories, transactions, budgets, accounts, subscriptions, investments } from "@/lib/mock-data";
+import { Plus, SlidersHorizontal, Wallet, CalendarClock } from "lucide-react";
 
 const fadeIn = {
   initial: { opacity: 0, y: 8 },
@@ -14,18 +16,54 @@ function formatMoney(n: number) {
   return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 0 }).format(n);
 }
 
-function getBudgetStatus() {
-  const totalBudget = budgets.reduce((s, b) => s + b.budgeted, 0);
-  const totalSpent = budgets.reduce((s, b) => s + b.spent, 0);
-  const ratio = totalSpent / totalBudget;
-  if (ratio < 0.7) return { color: 'bg-success', label: '🟢 Vas con margen', message: 'Todo tranquilo. Sigue así.' };
-  if (ratio < 0.9) return { color: 'bg-warning', label: '🟡 Estás cerca del límite', message: 'No pasa nada. Puedes ajustar cuando quieras.' };
-  return { color: 'bg-danger', label: '🔴 Te estás pasando', message: 'No pasa nada. Puedes ajustar cuando quieras.' };
+function getUpcomingPayments() {
+  const now = new Date('2026-02-26');
+  const in14 = new Date(now);
+  in14.setDate(in14.getDate() + 14);
+
+  const upcoming: { name: string; amount: number; date: string }[] = [];
+
+  // Credit card payment dates
+  accounts.filter(a => a.type === 'credit' && a.paymentDate).forEach(acc => {
+    const payDate = new Date(2026, 2, acc.paymentDate!); // March
+    if (payDate >= now && payDate <= in14) {
+      upcoming.push({ name: acc.name, amount: Math.abs(acc.balance), date: payDate.toISOString().slice(0, 10) });
+    }
+  });
+
+  // Subscriptions
+  subscriptions.filter(s => !s.paid).forEach(sub => {
+    const d = new Date(sub.nextDate);
+    if (d >= now && d <= in14) {
+      upcoming.push({ name: sub.name, amount: sub.amount, date: sub.nextDate });
+    }
+  });
+
+  return upcoming.sort((a, b) => a.date.localeCompare(b.date));
 }
 
 export default function Index() {
-  const status = getBudgetStatus();
+  const navigate = useNavigate();
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+
+  const totalBudget = budgets.reduce((s, b) => s + b.budgeted, 0);
+  const totalSpent = budgets.reduce((s, b) => s + b.spent, 0);
+  const budgetPct = Math.round((totalSpent / totalBudget) * 100);
+  const budgetBarColor = budgetPct < 70 ? 'bg-primary' : budgetPct < 90 ? 'bg-warning' : 'bg-danger';
+
+  const liquidez = accounts.filter(a => a.type !== 'credit').reduce((s, a) => s + a.balance, 0);
+  const deuda = Math.abs(accounts.filter(a => a.type === 'credit').reduce((s, a) => s + a.balance, 0));
+  const invested = investments.reduce((s, i) => s + i.current_value, 0);
+  const capitalTotal = liquidez + invested - deuda;
+
+  const quedaPorGastar = totalBudget - totalSpent;
+  const upcomingPayments = getUpcomingPayments();
   const recentTransactions = transactions.slice(0, 5);
+
+  function formatDate(d: string) {
+    const date = new Date(d + 'T00:00:00');
+    return date.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' });
+  }
 
   return (
     <Layout>
@@ -36,53 +74,110 @@ export default function Index() {
           <p className="text-muted-foreground text-sm mt-1">Febrero 2026</p>
         </motion.div>
 
-        {/* Summary Cards */}
-        <motion.div {...fadeIn} transition={{ delay: 0.05 }} className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="card-calm p-5">
-            <p className="text-label">Disponible</p>
-            <p className="text-number mt-1">{formatMoney(monthlyTotals.available)}</p>
-            <p className="text-xs text-muted-foreground mt-1">Lo que tienes hoy</p>
-          </div>
-          <div className="card-calm p-5">
-            <p className="text-label">Deuda tarjetas</p>
-            <p className="text-number mt-1">{formatMoney(monthlyTotals.creditDebt)}</p>
-            <p className="text-xs text-muted-foreground mt-1">Pendiente por pagar</p>
-          </div>
-          <div className="card-calm p-5">
-            <p className="text-label">Flujo del mes</p>
-            <p className="text-number mt-1 text-success">{formatMoney(monthlyTotals.income - monthlyTotals.expenses)}</p>
-            <p className="text-xs text-muted-foreground mt-1">Cómo vas este mes</p>
+        {/* 1. Tu posición hoy */}
+        <motion.div {...fadeIn} transition={{ delay: 0.05 }} className="card-calm p-6">
+          <p className="text-label mb-1">Capital total</p>
+          <p className="text-4xl font-bold text-foreground tracking-tight">{formatMoney(capitalTotal)}</p>
+          <div className="flex flex-wrap gap-x-6 gap-y-1 mt-4 text-sm">
+            <div>
+              <span className="text-muted-foreground">Disponible en banco: </span>
+              <span className="text-foreground font-medium">{formatMoney(liquidez)}</span>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Invertido: </span>
+              <span className="text-foreground font-medium">{formatMoney(invested)}</span>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Deuda: </span>
+              <span className="text-danger font-medium">–{formatMoney(deuda)}</span>
+            </div>
           </div>
         </motion.div>
 
-        {/* Budget Status */}
-        <motion.div {...fadeIn} transition={{ delay: 0.1 }} className="card-calm p-5">
-          <div className="flex items-center gap-3">
-            <div className={`w-3 h-3 rounded-full ${status.color}`} />
-            <p className="font-medium text-foreground">{status.label}</p>
-          </div>
-          <p className="text-sm text-muted-foreground mt-2">{status.message}</p>
+        {/* Quick Actions */}
+        <motion.div {...fadeIn} transition={{ delay: 0.08 }} className="grid grid-cols-3 gap-3">
+          <button
+            onClick={() => setQuickAddOpen(true)}
+            className="card-calm p-3 flex flex-col items-center gap-2 hover:bg-accent/50 transition-colors"
+          >
+            <Plus className="w-5 h-5 text-primary" />
+            <span className="text-xs font-medium text-foreground">Registrar</span>
+          </button>
+          <button
+            onClick={() => navigate('/budgets')}
+            className="card-calm p-3 flex flex-col items-center gap-2 hover:bg-accent/50 transition-colors"
+          >
+            <SlidersHorizontal className="w-5 h-5 text-muted-foreground" />
+            <span className="text-xs font-medium text-foreground">Presupuesto</span>
+          </button>
+          <button
+            onClick={() => navigate('/accounts')}
+            className="card-calm p-3 flex flex-col items-center gap-2 hover:bg-accent/50 transition-colors"
+          >
+            <Wallet className="w-5 h-5 text-muted-foreground" />
+            <span className="text-xs font-medium text-foreground">Balances</span>
+          </button>
         </motion.div>
 
-        {/* Chart */}
-        <motion.div {...fadeIn} transition={{ delay: 0.15 }} className="card-calm p-5">
-          <h3 className="text-sm font-medium text-foreground mb-4">Gasto acumulado vs Presupuesto</h3>
-          <div className="h-48">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={spendingVsBudget}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(220 13% 91%)" />
-                <XAxis dataKey="day" tick={{ fontSize: 12 }} stroke="hsl(220 9% 46%)" axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 12 }} stroke="hsl(220 9% 46%)" axisLine={false} tickLine={false} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
-                <Tooltip
-                  contentStyle={{ borderRadius: '12px', border: '1px solid hsl(220 13% 91%)', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}
-                  formatter={(value: number) => [formatMoney(value), '']}
-                />
-                <Line type="monotone" dataKey="spent" stroke="hsl(142 71% 45%)" strokeWidth={2} dot={false} name="Gastado" />
-                <Line type="monotone" dataKey="budget" stroke="hsl(220 13% 91%)" strokeWidth={2} strokeDasharray="5 5" dot={false} name="Presupuesto" />
-              </LineChart>
-            </ResponsiveContainer>
+        {/* 2. Este mes */}
+        <motion.div {...fadeIn} transition={{ delay: 0.1 }} className="grid grid-cols-3 gap-4">
+          <div className="card-calm p-4 text-center">
+            <p className="text-label">Ganado</p>
+            <p className="text-lg font-semibold text-success mt-1">+{formatMoney(monthlyTotals.income)}</p>
+          </div>
+          <div className="card-calm p-4 text-center">
+            <p className="text-label">Gastado</p>
+            <p className="text-lg font-semibold text-foreground mt-1">–{formatMoney(monthlyTotals.expenses)}</p>
+          </div>
+          <div className="card-calm p-4 text-center">
+            <p className="text-label">Te queda</p>
+            <p className={`text-lg font-semibold mt-1 ${quedaPorGastar > 0 ? 'text-primary' : 'text-danger'}`}>
+              {formatMoney(quedaPorGastar)}
+            </p>
           </div>
         </motion.div>
+
+        {/* 3. Barra de presupuesto */}
+        <motion.div {...fadeIn} transition={{ delay: 0.13 }} className="card-calm p-5">
+          <div className="flex justify-between items-center mb-3">
+            <p className="text-sm font-medium text-foreground">Presupuesto mensual</p>
+            <p className="text-sm text-muted-foreground">{budgetPct}% usado</p>
+          </div>
+          <div className="h-3 bg-secondary rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${budgetBarColor}`}
+              style={{ width: `${Math.min(budgetPct, 100)}%` }}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            {budgetPct < 70
+              ? '🟢 Vas con margen. Sigue así.'
+              : budgetPct < 90
+                ? '🟡 Estás cerca del límite. No pasa nada.'
+                : '🔴 Te estás pasando. Puedes ajustar cuando quieras.'}
+          </p>
+        </motion.div>
+
+        {/* 4. Pagos próximos */}
+        {upcomingPayments.length > 0 && (
+          <motion.div {...fadeIn} transition={{ delay: 0.16 }} className="card-calm p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <CalendarClock className="w-4 h-4 text-muted-foreground" />
+              <h3 className="text-sm font-medium text-foreground">Pagos próximos</h3>
+            </div>
+            <div className="space-y-3">
+              {upcomingPayments.map((p, i) => (
+                <div key={i} className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-foreground">{p.name}</p>
+                    <p className="text-xs text-muted-foreground">{formatDate(p.date)}</p>
+                  </div>
+                  <span className="text-sm font-medium text-foreground">{formatMoney(p.amount)}</span>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
 
         {/* Top Categories */}
         <motion.div {...fadeIn} transition={{ delay: 0.2 }} className="card-calm p-5">
@@ -130,7 +225,7 @@ export default function Index() {
         </motion.div>
       </div>
 
-      <QuickAddTransaction />
+      <QuickAddTransaction open={quickAddOpen} onOpenChange={setQuickAddOpen} />
     </Layout>
   );
 }

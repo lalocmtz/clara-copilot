@@ -47,6 +47,15 @@ export interface CategorySummary {
   percentage: number;
 }
 
+export interface Investment {
+  id: string;
+  name: string;
+  type: 'crypto' | 'acciones' | 'fondo' | 'negocio';
+  current_value: number;
+  cost_basis: number;
+  last_updated: string;
+}
+
 export const accounts: Account[] = [
   { id: '1', name: 'BBVA Débito', type: 'checking', balance: 45200, currency: 'MXN' },
   { id: '2', name: 'Nu Ahorro', type: 'savings', balance: 18500, currency: 'MXN' },
@@ -64,6 +73,12 @@ export const categories = [
   { id: '8', name: 'Ventas', icon: '💰' },
   { id: '9', name: 'Freelance', icon: '💻' },
   { id: '10', name: 'Otros', icon: '📦' },
+];
+
+export const investments: Investment[] = [
+  { id: '1', name: 'Bitcoin', type: 'crypto', current_value: 28500, cost_basis: 22000, last_updated: '2026-02-26' },
+  { id: '2', name: 'VOO (S&P 500)', type: 'fondo', current_value: 45000, cost_basis: 40000, last_updated: '2026-02-25' },
+  { id: '3', name: 'Proyecto freelance equity', type: 'negocio', current_value: 15000, cost_basis: 10000, last_updated: '2026-02-20' },
 ];
 
 export const transactions: Transaction[] = [
@@ -111,14 +126,5 @@ export const monthlyTotals = {
   expenses: 14899,
   available: 50900,
   creditDebt: 12800,
+  invested: 88500,
 };
-
-export const spendingVsBudget = [
-  { day: '1', spent: 800, budget: 733 },
-  { day: '5', spent: 2200, budget: 3667 },
-  { day: '10', spent: 5100, budget: 7333 },
-  { day: '15', spent: 8200, budget: 11000 },
-  { day: '20', spent: 11500, budget: 14667 },
-  { day: '25', spent: 14200, budget: 18333 },
-  { day: '28', spent: 14899, budget: 22000 },
-];

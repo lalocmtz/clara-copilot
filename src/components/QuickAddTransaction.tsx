@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { categories, accounts } from "@/lib/mock-data";
@@ -7,8 +7,19 @@ import { cn } from "@/lib/utils";
 const topCategories = categories.slice(0, 6);
 const topAccounts = accounts.slice(0, 3);
 
-export default function QuickAddTransaction() {
-  const [open, setOpen] = useState(false);
+interface Props {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}
+
+export default function QuickAddTransaction({ open: controlledOpen, onOpenChange }: Props) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = (v: boolean) => {
+    onOpenChange?.(v);
+    setInternalOpen(v);
+  };
+
   const [type, setType] = useState<'expense' | 'income'>('expense');
   const [amount, setAmount] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(topCategories[0].id);
@@ -17,6 +28,7 @@ export default function QuickAddTransaction() {
   const [saved, setSaved] = useState(false);
 
   const handleSave = () => {
+    if (!amount) return;
     setSaved(true);
     setTimeout(() => {
       setSaved(false);
@@ -24,6 +36,13 @@ export default function QuickAddTransaction() {
       setAmount('');
       setNotes('');
     }, 1200);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && amount) {
+      e.preventDefault();
+      handleSave();
+    }
   };
 
   return (
@@ -105,6 +124,7 @@ export default function QuickAddTransaction() {
                         type="number"
                         value={amount}
                         onChange={(e) => setAmount(e.target.value)}
+                        onKeyDown={handleKeyDown}
                         placeholder="0"
                         autoFocus
                         className="text-4xl font-semibold text-foreground bg-transparent outline-none w-40 text-center placeholder:text-muted-foreground/30"
@@ -163,6 +183,7 @@ export default function QuickAddTransaction() {
                       type="text"
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
+                      onKeyDown={handleKeyDown}
                       placeholder="Ej: Tacos con el equipo"
                       className="w-full py-2 px-3 rounded-lg bg-secondary text-foreground text-sm outline-none placeholder:text-muted-foreground/50 focus:ring-2 focus:ring-ring/20 transition-all"
                     />
