@@ -1,79 +1,84 @@
 
 
-# Mejorar la experiencia de vinculacion de Telegram
+# Arreglar la seccion de Presupuestos y Categorias
 
-## Problemas actuales
+## Problemas identificados
 
-1. **El "Paso 1: Configurar webhook"** no deberia ser visible para el usuario. Es un detalle tecnico que solo confunde. El webhook se debe configurar automaticamente cuando el usuario genera su codigo.
-2. **No se muestra el nombre del bot.** El usuario no sabe a que bot buscar en Telegram. Necesita ver algo como "Busca a @MiBot en Telegram".
-3. **La interfaz no es intuitiva.** Falta un flujo visual claro paso a paso con instrucciones amigables.
-4. **No hay indicador de estado.** El usuario no sabe si ya esta vinculado o no.
-5. **El `config.toml` no tiene las funciones configuradas** con `verify_jwt = false`, lo cual puede causar que Telegram no pueda llamar al webhook.
+1. **El presupuesto total no se guarda**: Al editar el total, solo cambia una variable local (`tempTotal`) pero nunca se distribuye ni se guarda. El boton "Listo" no hace nada util.
 
-## Solucion
+2. **Las categorias no se borran realmente**: El boton de basura solo hace `toggleCategory` (activa/desactiva), pero visualmente parece que las borra. Las categorias "borradas" siguen ahi, solo se ponen semitransparentes.
 
-Redisenar el componente `TelegramLink.tsx` para que sea un flujo guiado, visualmente claro, con estos pasos:
+3. **El selector de emojis esta limitado**: Solo muestra 9 de los 18 emojis disponibles (`emojiOptions.slice(0, 9)`). Ademas, no se puede poner cualquier emoji -- solo los predefinidos.
 
-### Paso 1 (automatico, invisible para el usuario)
-Al abrir el modal, se configura el webhook silenciosamente en segundo plano. El usuario no ve nada de esto.
+4. **Los presupuestos no estan sincronizados con las categorias**: Si agregas una categoria nueva, no aparece automaticamente en presupuestos. Y si desactivas una categoria, su presupuesto sigue visible.
 
-### Paso 2 (visible) - Busca tu bot
-Mostrar instruccion clara: "Abre Telegram y busca a **@NombreDelBot**" con un boton que abra directamente `https://t.me/NombreDelBot`.
+5. **No hay forma de agregar presupuestos desde la pagina de presupuestos**: Solo se muestran los que ya existen.
 
-### Paso 3 (visible) - Envia el codigo
-Mostrar el comando `/vincular 123456` con boton de copiar y cuenta regresiva de 10 minutos.
+## Solucion propuesta
 
-### Paso 4 (visible) - Listo
-Despues de vincular, mostrar instrucciones de uso con ejemplos.
+### 1. Redisenar la pagina de Presupuestos (`src/pages/Budgets.tsx`)
 
-## Cambios tecnicos
+**Presupuesto total:**
+- El presupuesto total se calcula como la suma de los presupuestos individuales (no se edita directamente)
+- Eliminar el boton de editar el total -- el total es resultado de los individuales
 
-### 1. `src/components/TelegramLink.tsx` (reescribir)
+**Tabla de categorias:**
+- Cada categoria activa tiene una fila con su presupuesto editable
+- Al editar un monto y guardarlo, se actualiza en la base de datos y la UI se refresca
+- Agregar boton "Nueva categoria con presupuesto" que permite agregar presupuesto a categorias que aun no tienen
+- Las categorias sin presupuesto aparecen como opcion para agregar
 
-- Eliminar el boton manual de "Configurar webhook" -- hacerlo automaticamente al abrir el modal
-- Agregar una constante o campo para el nombre del bot (se puede obtener via la API de Telegram `getMe` en el setup, o pedirle al usuario que lo configure)
-- Disenar un flujo visual con pasos numerados estilo stepper
-- Agregar un boton "Abrir en Telegram" que lleve a `https://t.me/{bot_username}`
-- Verificar si el usuario ya tiene un `telegram_link` activo y mostrar estado "Ya vinculado"
-- Agregar opcion de desvincular
+### 2. Sincronizar presupuestos con categorias
 
-### 2. `supabase/functions/telegram-setup/index.ts` (modificar)
+- Al cargar la pagina, cruzar categorias activas con presupuestos existentes
+- Mostrar categorias activas sin presupuesto como "sin asignar" con opcion de agregar monto
+- Al desactivar una categoria, ofrecer opcion de eliminar su presupuesto
 
-- Ademas de configurar el webhook, llamar a `getMe` de la API de Telegram para obtener el username del bot
-- Retornar el username en la respuesta para que el frontend lo muestre
+### 3. Arreglar CategoryManager (`src/components/CategoryManager.tsx`)
 
-### 3. `supabase/config.toml`
+**Borrar categorias:**
+- Cambiar el boton de basura para que realmente elimine la categoria (con confirmacion)
+- Agregar una funcion `deleteCategory` al contexto que haga `DELETE` en la base de datos
+- Si la categoria tiene transacciones o presupuestos asociados, mostrar advertencia
 
-Nota: este archivo se gestiona automaticamente, pero las funciones necesitan `verify_jwt = false` para que Telegram pueda enviar webhooks. Si el sistema no lo configura automaticamente, habra que verificar que las funciones sean accesibles sin JWT.
+**Selector de emojis:**
+- Mostrar TODOS los emojis disponibles (los 18), no solo 9
+- Agregar un campo de texto donde el usuario pueda pegar cualquier emoji que quiera
+- Organizar los emojis en una cuadricula mas amplia
 
-### Flujo del usuario (nuevo)
+### 4. Actualizar AppContext (`src/context/AppContext.tsx`)
 
-1. Toca el boton "Telegram" en la pantalla principal
-2. Se abre un modal con instrucciones claras y visuales
-3. Ve: "Paso 1: Abre tu bot en Telegram" con un boton azul "Abrir @MiBot en Telegram"
-4. Ve: "Paso 2: Envia este comando" con `/vincular 482917` y boton de copiar
-5. Ve: "Paso 3: Listo! Ya puedes enviar mensajes como: Gaste 200 en uber"
-6. Si ya esta vinculado, ve un indicador verde "Telegram vinculado" con opcion de desvincular
+- Agregar funcion `deleteCategory(id)` que elimine de la base de datos y del estado
+- Modificar `updateBudget` para que refetch los datos despues de guardar (evitar datos stale)
+- Asegurar que al agregar/eliminar categorias se actualicen los presupuestos correspondientes
 
-### Estructura visual del modal
+## Cambios por archivo
 
-```text
-+------------------------------------------+
-|  [Bot icon]  Vincular Telegram           |
-|  Registra gastos desde Telegram          |
-|                                          |
-|  (1) Abre tu bot en Telegram             |
-|      [ Abrir @MiBot en Telegram ]        |
-|                                          |
-|  (2) Envia este comando:                 |
-|      /vincular 482917        [Copiar]    |
-|      El codigo expira en 10 min          |
-|                                          |
-|  (3) Listo! Envia mensajes como:         |
-|      "Gaste 200 en uber"                 |
-|      "Ingreso 5000 nomina"              |
-|      "150 comida BBVA"                   |
-|      "/resumen" para ver tu mes          |
-+------------------------------------------+
-```
+### `src/context/AppContext.tsx`
+- Agregar `deleteCategory(id: string)` al contexto y a la interfaz
+- Refetch despues de mutaciones en presupuestos para evitar montos que no se actualizan
+- Exponer `loadAllData` o un `refetch` para forzar recarga cuando sea necesario
+
+### `src/components/CategoryManager.tsx`
+- Reemplazar `toggleCategory` por `deleteCategory` con dialogo de confirmacion
+- Mostrar todos los 18+ emojis en la cuadricula (quitar el `.slice(0, 9)`)
+- Agregar campo de texto para emoji personalizado (el usuario pega el que quiera)
+- Mejor layout: cuadricula de emojis mas grande y campo de texto debajo
+
+### `src/pages/Budgets.tsx`
+- Eliminar la edicion del "presupuesto total" (se calcula automaticamente)
+- El total ahora es solo la suma de los individuales, no editable
+- Agregar boton para asignar presupuesto a categorias que aun no tienen uno
+- Despues de editar un presupuesto individual, refrescar los datos desde la base de datos
+- Agregar slider visual o input mas amigable para asignar montos
+- Mostrar categorias sin presupuesto al final con opcion de "Asignar presupuesto"
+
+### Flujo de usuario mejorado
+
+1. Abres Presupuestos y ves todas tus categorias activas con su monto asignado
+2. Tocas el monto de cualquier categoria para editarlo -- se guarda al confirmar
+3. El total se recalcula automaticamente
+4. Si tienes categorias sin presupuesto, aparecen al final con boton "Asignar"
+5. Desde "Categorias" puedes agregar nuevas (con cualquier emoji) o eliminar existentes
+6. Al eliminar una categoria con presupuesto, se elimina tambien el presupuesto
 
