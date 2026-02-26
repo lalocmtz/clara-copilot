@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { X, Trash2 } from "lucide-react";
+import { X, Trash2, CalendarPlus, Check } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppData } from "@/context/AppContext";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import type { Transaction } from "@/lib/mock-data";
 
 type TxType = 'expense' | 'income' | 'transfer';
@@ -14,7 +15,7 @@ interface Props {
 }
 
 export default function TransactionEditor({ transaction, open, onOpenChange }: Props) {
-  const { updateTransaction, deleteTransaction, categories, accounts } = useAppData();
+  const { updateTransaction, deleteTransaction, addSubscription, categories, accounts } = useAppData();
   const activeCats = categories.filter(c => c.active);
 
   const [type, setType] = useState<TxType>('expense');
@@ -25,6 +26,7 @@ export default function TransactionEditor({ transaction, open, onOpenChange }: P
   const [notes, setNotes] = useState('');
   const [merchant, setMerchant] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [addedAsSub, setAddedAsSub] = useState(false);
 
   useEffect(() => {
     if (transaction) {
@@ -36,6 +38,7 @@ export default function TransactionEditor({ transaction, open, onOpenChange }: P
       setNotes(transaction.notes || '');
       setMerchant(transaction.merchant || '');
       setConfirmDelete(false);
+      setAddedAsSub(false);
     }
   }, [transaction]);
 
@@ -164,6 +167,39 @@ export default function TransactionEditor({ transaction, open, onOpenChange }: P
               <input type="text" value={notes} onChange={e => setNotes(e.target.value)}
                 className="w-full py-2 px-3 rounded-lg bg-secondary text-foreground text-sm outline-none placeholder:text-muted-foreground/50 focus:ring-2 focus:ring-ring/20" />
             </div>
+
+            {/* Add as subscription - only for expenses */}
+            {type === 'expense' && (
+              <button
+                onClick={() => {
+                  const billingDay = transaction.date ? new Date(transaction.date).getDate() : 1;
+                  const subName = merchant || category || 'Suscripción';
+                  addSubscription({
+                    name: subName,
+                    amount: parseFloat(amount) || transaction.amount,
+                    frequency: 'monthly',
+                    nextDate: '',
+                    paid: false,
+                    billingDay,
+                    subType: 'digital',
+                    category: category || transaction.category,
+                    categoryIcon: transaction.categoryIcon,
+                  });
+                  toast.success(`${subName} agregado a suscripciones`);
+                  setAddedAsSub(true);
+                }}
+                disabled={addedAsSub}
+                className={cn(
+                  "w-full py-3 px-4 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 mb-6",
+                  addedAsSub
+                    ? "bg-success/10 text-success cursor-default"
+                    : "bg-secondary text-foreground hover:bg-accent"
+                )}
+              >
+                {addedAsSub ? <Check className="w-4 h-4" /> : <CalendarPlus className="w-4 h-4" />}
+                {addedAsSub ? 'Agregado a suscripciones' : 'Agregar como suscripción recurrente'}
+              </button>
+            )}
 
             {/* Actions */}
             <div className="flex gap-3">
