@@ -1,0 +1,1 @@
+ALTER TABLE public.profiles ADD COLUMN demo_seeded boolean NOT NULL DEFAULT false;

@@ -43,7 +43,9 @@ interface AppContextType {
   updateSubscription: (id: string, s: Partial<Subscription>) => void;
   deleteSubscription: (id: string) => void;
 
+  addInvestment: (i: Omit<Investment, "id">) => void;
   updateInvestment: (id: string, i: Partial<Investment>) => void;
+  deleteInvestment: (id: string) => void;
 
   addCategory: (c: Omit<Category, "id" | "active">) => void;
   updateCategory: (id: string, c: Partial<Category>) => void;
@@ -67,7 +69,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Load all data when user changes
   useEffect(() => {
     if (!user) {
       setTransactions([]); setAccounts([]); setBudgets([]);
@@ -82,6 +83,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!user) return;
     setLoading(true);
 
+    // Check if demo was already seeded
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("demo_seeded")
+      .eq("user_id", user.id)
+      .single();
+
     const [txRes, accRes, budRes, subRes, invRes, catRes] = await Promise.all([
       supabase.from("transactions").select("*").eq("user_id", user.id).order("date", { ascending: false }),
       supabase.from("accounts").select("*").eq("user_id", user.id),
@@ -91,7 +99,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       supabase.from("categories").select("*").eq("user_id", user.id).order("sort_order"),
     ]);
 
-    // Map DB rows to app types
     const mapTx = (r: any): Transaction => ({
       id: r.id, type: r.type, amount: Number(r.amount), currency: r.currency,
       date: r.date, category: r.category, categoryIcon: r.category_icon,
@@ -125,10 +132,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const invData = (invRes.data || []).map(mapInv);
     const catData = (catRes.data || []).map(mapCat);
 
-    // If no data at all, seed with demo data
-    if (txData.length === 0 && accData.length === 0 && catData.length === 0) {
+    // Only seed if demo_seeded is false (first time user)
+    const demoSeeded = profile?.demo_seeded ?? false;
+    if (!demoSeeded && txData.length === 0 && accData.length === 0 && catData.length === 0) {
       await seedDemoData();
-      await loadAllData(); // Reload after seeding
+      // Mark as seeded
+      await supabase.from("profiles").update({ demo_seeded: true } as any).eq("user_id", user.id);
+      await loadAllData();
       return;
     }
 
@@ -145,20 +155,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!user) return;
     const uid = user.id;
 
-    // Seed categories
     const catInserts = defaultCategories.map((c, i) => ({
       user_id: uid, name: c.name, icon: c.icon, active: true, sort_order: i,
     }));
     await supabase.from("categories").insert(catInserts);
 
-    // Seed accounts
     const accInserts = defaultAccounts.map(a => ({
       user_id: uid, name: a.name, type: a.type, balance: a.balance, currency: a.currency,
       credit_limit: a.creditLimit ?? null, cutoff_date: a.cutoffDate ?? null, payment_date: a.paymentDate ?? null,
     }));
     await supabase.from("accounts").insert(accInserts);
 
-    // Seed transactions
     const txInserts = defaultTransactions.map(t => ({
       user_id: uid, type: t.type, amount: t.amount, currency: t.currency, date: t.date,
       category: t.category, category_icon: t.categoryIcon, account: t.account,
@@ -166,21 +173,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }));
     await supabase.from("transactions").insert(txInserts);
 
-    // Seed budgets
     const budInserts = defaultBudgets.map(b => ({
       user_id: uid, category: b.category, category_icon: b.categoryIcon,
       budgeted: b.budgeted, spent: b.spent, period: b.period,
     }));
     await supabase.from("budgets").insert(budInserts);
 
-    // Seed subscriptions
     const subInserts = defaultSubscriptions.map(s => ({
       user_id: uid, name: s.name, amount: s.amount, frequency: s.frequency,
       next_date: s.nextDate, paid: s.paid,
     }));
     await supabase.from("subscriptions").insert(subInserts);
 
-    // Seed investments
     const invInserts = defaultInvestments.map(i => ({
       user_id: uid, name: i.name, type: i.type, current_value: i.current_value,
       cost_basis: i.cost_basis, last_updated: i.last_updated,
@@ -188,7 +192,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await supabase.from("investments").insert(invInserts);
   }
 
-  // === CRUD functions that write to DB and update local state ===
+  // === CRUD ===
 
   const addTransaction = useCallback(async (t: Omit<Transaction, "id">) => {
     if (!user) return;
@@ -313,14 +317,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSubscriptions(prev => prev.filter(sub => sub.id !== id));
   }, []);
 
+  const addInvestment = useCallback(async (i: Omit<Investment, "id">) => {
+    if (!user) return;
+    const { data } = await supabase.from("investments").insert({
+      user_id: user.id, name: i.name, type: i.type,
+      current_value: i.current_value, cost_basis: i.cost_basis, last_updated: i.last_updated,
+    }).select().single();
+    if (data) {
+      setInvestments(prev => [...prev, {
+        id: data.id, name: data.name, type: data.type as Investment['type'],
+        current_value: Number(data.current_value), cost_basis: Number(data.cost_basis),
+        last_updated: data.last_updated,
+      }]);
+    }
+  }, [user]);
+
   const updateInvestment = useCallback(async (id: string, i: Partial<Investment>) => {
     const updates: any = {};
     if (i.current_value !== undefined) updates.current_value = i.current_value;
     if (i.cost_basis !== undefined) updates.cost_basis = i.cost_basis;
     if (i.name !== undefined) updates.name = i.name;
     if (i.type !== undefined) updates.type = i.type;
+    if (i.last_updated !== undefined) updates.last_updated = i.last_updated;
     await supabase.from("investments").update(updates).eq("id", id);
     setInvestments(prev => prev.map(inv => inv.id === id ? { ...inv, ...i } : inv));
+  }, []);
+
+  const deleteInvestment = useCallback(async (id: string) => {
+    await supabase.from("investments").delete().eq("id", id);
+    setInvestments(prev => prev.filter(inv => inv.id !== id));
   }, []);
 
   const addCategory = useCallback(async (c: Omit<Category, "id" | "active">) => {
@@ -352,7 +377,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const resetAll = useCallback(async () => {
     if (!user) return;
-    // Delete all user data
     await Promise.all([
       supabase.from("transactions").delete().eq("user_id", user.id),
       supabase.from("accounts").delete().eq("user_id", user.id),
@@ -361,12 +385,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       supabase.from("investments").delete().eq("user_id", user.id),
       supabase.from("categories").delete().eq("user_id", user.id),
     ]);
-    // Re-seed and reload
+    // Reset demo_seeded so re-seeding happens
+    await supabase.from("profiles").update({ demo_seeded: false } as any).eq("user_id", user.id);
     await seedDemoData();
+    await supabase.from("profiles").update({ demo_seeded: true } as any).eq("user_id", user.id);
     await loadAllData();
   }, [user]);
 
-  // Computed
   const monthlyTotals = useMemo(() => {
     const income = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
     const expenses = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
@@ -393,14 +418,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     addAccount, updateAccount, deleteAccount,
     updateBudget, addBudget, deleteBudget,
     addSubscription, updateSubscription, deleteSubscription,
-    updateInvestment,
+    addInvestment, updateInvestment, deleteInvestment,
     addCategory, updateCategory, toggleCategory,
     resetAll,
     monthlyTotals, topCategories,
   }), [transactions, accounts, budgets, subscriptions, investments, categories, loading,
     monthlyTotals, topCategories, addTransaction, updateTransaction, deleteTransaction,
     addAccount, updateAccount, deleteAccount, updateBudget, addBudget, deleteBudget,
-    addSubscription, updateSubscription, deleteSubscription, updateInvestment,
+    addSubscription, updateSubscription, deleteSubscription,
+    addInvestment, updateInvestment, deleteInvestment,
     addCategory, updateCategory, toggleCategory, resetAll]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

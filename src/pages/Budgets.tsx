@@ -5,10 +5,21 @@ import { useAppData } from "@/context/AppContext";
 import { cn } from "@/lib/utils";
 import { Pencil, Settings, Check, X } from "lucide-react";
 import CategoryManager from "@/components/CategoryManager";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 0 }).format(n);
 }
+
+const PIE_COLORS = [
+  'hsl(var(--primary))',
+  'hsl(var(--chart-2))',
+  'hsl(var(--chart-3))',
+  'hsl(var(--chart-4))',
+  'hsl(var(--chart-5))',
+  'hsl(210, 60%, 55%)',
+  'hsl(340, 55%, 55%)',
+];
 
 export default function Budgets() {
   const { budgets, updateBudget } = useAppData();
@@ -33,6 +44,29 @@ export default function Budgets() {
       updateBudget(editingBudgetId, { budgeted: parseFloat(tempBudgetAmount) });
     }
     setEditingBudgetId(null);
+  };
+
+  // Pie chart data - only categories with spending
+  const pieData = budgets
+    .filter(b => b.spent > 0)
+    .map((b, i) => ({
+      name: b.category,
+      value: b.spent,
+      icon: b.categoryIcon,
+      color: PIE_COLORS[i % PIE_COLORS.length],
+    }));
+
+  const CustomTooltip = ({ active, payload }: any) => {
+    if (active && payload?.[0]) {
+      const d = payload[0].payload;
+      return (
+        <div className="bg-card border border-border rounded-lg px-3 py-2 shadow-md text-sm">
+          <span>{d.icon} {d.name}: </span>
+          <span className="font-semibold">{formatMoney(d.value)}</span>
+        </div>
+      );
+    }
+    return null;
   };
 
   return (
@@ -77,6 +111,36 @@ export default function Budgets() {
           </div>
         </div>
 
+        {/* Pie Chart */}
+        {pieData.length > 0 && (
+          <div className="card-calm p-5">
+            <p className="text-label mb-4">Desglose de gastos</p>
+            <div className="flex flex-col sm:flex-row items-center gap-6">
+              <div className="w-48 h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={pieData} dataKey="value" cx="50%" cy="50%" innerRadius={45} outerRadius={80} paddingAngle={2}>
+                      {pieData.map((entry, i) => (
+                        <Cell key={i} fill={entry.color} stroke="none" />
+                      ))}
+                    </Pie>
+                    <Tooltip content={<CustomTooltip />} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                {pieData.map((d, i) => (
+                  <div key={i} className="flex items-center gap-2 text-sm">
+                    <span className="w-3 h-3 rounded-full" style={{ backgroundColor: d.color }} />
+                    <span className="text-muted-foreground">{d.icon} {d.name}</span>
+                    <span className="font-medium text-foreground">{totalSpent > 0 ? Math.round((d.value / totalSpent) * 100) : 0}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Per-category budgets */}
         <div className="card-calm overflow-hidden">
           <div className="hidden sm:grid grid-cols-5 gap-4 p-4 text-label border-b border-border">
@@ -84,7 +148,7 @@ export default function Budgets() {
           </div>
           {budgets.map((b) => {
             const remaining = b.budgeted - b.spent;
-            const pct = Math.min((b.spent / b.budgeted) * 100, 100);
+            const pct = b.budgeted > 0 ? Math.min((b.spent / b.budgeted) * 100, 100) : 0;
             const isOver = b.spent > b.budgeted;
             const isEditing = editingBudgetId === b.id;
             return (
