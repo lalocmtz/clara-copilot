@@ -1,69 +1,55 @@
 
+# Conectar transacciones con saldos de cuentas
 
-# Pulir la seccion de Suscripciones y Gastos Fijos
+## Problema actual
+Cuando registras un gasto o ingreso y seleccionas una cuenta (ej: "Jai Banco"), la transaccion se guarda pero el saldo de esa cuenta no cambia. No hay conexion real entre transacciones y cuentas.
 
-## Cambios en la base de datos
+## Solucion
+Cada vez que se cree, edite o elimine una transaccion, el saldo de la cuenta asociada se actualizara automaticamente en la base de datos y en la interfaz.
 
-Agregar columnas a la tabla `subscriptions`:
-- `billing_day` (integer, nullable) -- dia del mes en que se cobra (1-31), reemplaza la logica de `next_date` como fecha fija
-- `sub_type` (text, default 'digital') -- tipo: 'digital' (suscripciones) o 'fixed' (gastos fijos como renta, internet)
-- `category` (text, nullable) -- nombre de la categoria vinculada
-- `category_icon` (text, default '🔄') -- icono de la categoria
+### Logica de impacto en saldo:
+- **Gasto**: resta el monto del saldo de la cuenta
+- **Ingreso**: suma el monto al saldo de la cuenta
+- **Editar transaccion**: revierte el impacto anterior y aplica el nuevo
+- **Eliminar transaccion**: revierte el impacto de la transaccion eliminada
 
-La columna `next_date` se mantiene pero se calculara automaticamente a partir de `billing_day`.
+## Cambios tecnicos
 
-## Cambios en el modelo de datos
+### 1. `src/context/AppContext.tsx` - Funcion `addTransaction`
+Despues de insertar la transaccion exitosamente:
+- Buscar la cuenta por nombre en el estado local
+- Calcular el delta: `+amount` si es ingreso, `-amount` si es gasto
+- Actualizar el saldo en la base de datos con `supabase.from("accounts").update({ balance: newBalance })`
+- Actualizar el estado local de cuentas con el nuevo saldo
 
-### `src/lib/mock-data.ts`
-Actualizar la interfaz `Subscription`:
-- Agregar `billingDay?: number` (dia del mes)
-- Agregar `subType: 'digital' | 'fixed'` (tipo de gasto)
-- Agregar `category?: string` y `categoryIcon?: string`
+### 2. `src/context/AppContext.tsx` - Funcion `updateTransaction`
+Antes de guardar los cambios:
+- Obtener la transaccion original del estado
+- Revertir el impacto anterior: si era gasto, sumar el monto viejo a la cuenta vieja; si era ingreso, restar
+- Aplicar el nuevo impacto: con el nuevo tipo, monto y cuenta
+- Si la cuenta cambio (ej: mover de BBVA a Nu), actualizar ambas cuentas
+- Guardar ambos saldos en la base de datos
 
-## Cambios en el contexto
+### 3. `src/context/AppContext.tsx` - Funcion `deleteTransaction`
+Antes de eliminar:
+- Obtener la transaccion del estado
+- Revertir su impacto: si era gasto, sumar el monto de vuelta; si era ingreso, restar
+- Actualizar saldo en base de datos y estado local
 
-### `src/context/AppContext.tsx`
-- Mapear las nuevas columnas (`billing_day`, `sub_type`, `category`, `category_icon`) en las funciones de lectura, creacion y actualizacion de suscripciones
-- Calcular `nextDate` automaticamente desde `billingDay`: si el dia ya paso este mes, mostrar el proximo mes
+### 4. `src/components/QuickAddTransaction.tsx` - Sin cambios estructurales
+Ya envia el nombre de la cuenta. La logica nueva vive en el contexto.
 
-## Rediseno de la pagina
+### 5. `src/components/TransactionEditor.tsx` - Sin cambios estructurales
+Ya permite cambiar cuenta, tipo y monto. La logica de reversion/aplicacion vive en el contexto.
 
-### `src/pages/Subscriptions.tsx` (reescribir)
+## Ejemplo de flujo
+1. Cuenta "BBVA Debito" tiene saldo $45,200
+2. Registras un gasto de $500 en "BBVA Debito"
+3. El sistema guarda la transaccion Y actualiza BBVA Debito a $44,700
+4. Si editas ese gasto a $300, el sistema revierte los $500 (+$500) y aplica -$300, quedando $44,900
+5. Si eliminas la transaccion, el sistema suma de vuelta los $300, quedando $45,200
 
-**Encabezado con resumen:**
-- Total mensual (suma de las mensuales + anuales/12)
-- Total anual (suma de las mensuales*12 + anuales)
-- Indicador de cuantas ya se pagaron este mes vs pendientes
-
-**Dos secciones colapsables:**
-1. "Suscripciones digitales" -- Netflix, Spotify, Adobe, etc.
-2. "Gastos fijos" -- Renta, internet, luz, telefono, etc.
-
-**Cada item muestra:**
-- Icono de categoria + nombre
-- Monto con indicador "mensual" o "anual"
-- Dia de cobro (ej: "Dia 15 de cada mes")
-- Estado: pagado (check verde) o pendiente
-- Costo equivalente mensual/anual segun corresponda
-
-**Barra de progreso** del mes: cuantas suscripciones ya se pagaron vs cuantas faltan.
-
-## Rediseno del editor
-
-### `src/components/SubscriptionEditor.tsx` (reescribir)
-
-- Cambiar "Proxima fecha de cobro" por un selector numerico de "Dia de cobro" (1-31)
-- Agregar selector de tipo: "Suscripcion digital" o "Gasto fijo"
-- Agregar selector de categoria (usando las categorias existentes del usuario)
-- Mostrar calculo automatico: si es mensual -> cuanto al ano; si es anual -> cuanto al mes
-- El campo `nextDate` se calcula automaticamente al guardar
-
-## Flujo del usuario
-
-1. Abre "Suscripciones" y ve arriba el resumen: $X/mes, $X/ano, 3 de 8 pagadas
-2. Ve dos secciones colapsables: digitales y gastos fijos
-3. Cada item muestra el dia de cobro, monto, categoria y estado
-4. Al tocar uno, se abre el editor con dia de cobro (no fecha completa)
-5. Al agregar uno nuevo, elige tipo, categoria, monto, dia, y frecuencia
-6. El sistema calcula automaticamente la proxima fecha a partir del dia
-
+## Notas
+- Las transacciones se vinculan a cuentas por nombre (campo `account`), que es como ya funciona el sistema actual
+- Para tarjetas de credito (saldo negativo), un gasto hace el saldo mas negativo y un pago/ingreso lo acerca a cero
+- No se requieren cambios en la base de datos, solo en la logica del contexto
