@@ -6,14 +6,15 @@ import StatementImporter from "@/components/StatementImporter";
 import { useAppData } from "@/context/AppContext";
 import { cn } from "@/lib/utils";
 import type { Transaction } from "@/lib/mock-data";
-import { Upload } from "lucide-react";
+import { Upload, ArrowLeftRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 0 }).format(n);
 }
 
-type FilterType = 'all' | 'expense' | 'income';
+type FilterType = 'all' | 'expense' | 'income' | 'transfer';
 
 export default function Transactions() {
   const { transactions } = useAppData();
@@ -22,7 +23,11 @@ export default function Transactions() {
   const [importOpen, setImportOpen] = useState(false);
 
   const filtered = filter === 'all' ? transactions : transactions.filter(t => t.type === filter);
-  const total = filtered.reduce((s, t) => s + (t.type === 'income' ? t.amount : -t.amount), 0);
+  // Exclude transfers from balance total
+  const total = filtered.reduce((s, t) => {
+    if (t.type === 'transfer') return s;
+    return s + (t.type === 'income' ? t.amount : -t.amount);
+  }, 0);
 
   return (
     <Layout>
@@ -38,12 +43,12 @@ export default function Transactions() {
           </Button>
         </div>
 
-        <div className="flex gap-2">
-          {(['all', 'expense', 'income'] as FilterType[]).map((f) => (
+        <div className="flex gap-2 flex-wrap">
+          {(['all', 'expense', 'income', 'transfer'] as FilterType[]).map((f) => (
             <button key={f} onClick={() => setFilter(f)}
               className={cn("px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200",
                 filter === f ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:bg-accent")}>
-              {f === 'all' ? 'Todos' : f === 'expense' ? 'Gastos' : 'Ingresos'}
+              {f === 'all' ? 'Todos' : f === 'expense' ? 'Gastos' : f === 'income' ? 'Ingresos' : 'Transferencias'}
             </button>
           ))}
         </div>
@@ -57,15 +62,27 @@ export default function Transactions() {
           {filtered.map((tx) => (
             <button key={tx.id} onClick={() => setEditTx(tx)} className="flex items-center justify-between p-4 w-full text-left hover:bg-accent/30 transition-colors">
               <div className="flex items-center gap-3">
-                <span className="text-lg">{tx.categoryIcon}</span>
+                <span className="text-lg">{tx.type === 'transfer' ? '↔' : tx.categoryIcon}</span>
                 <div>
-                  <p className="text-sm text-foreground font-medium">{tx.merchant || tx.notes || tx.category}</p>
-                  <p className="text-xs text-muted-foreground">{tx.category} · {tx.account}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm text-foreground font-medium">
+                      {tx.type === 'transfer'
+                        ? `De ${tx.account} a ${tx.toAccount || '?'}`
+                        : (tx.merchant || tx.notes || tx.category)}
+                    </p>
+                    {tx.type === 'transfer' && (
+                      <Badge variant="outline" className="text-xs bg-warning/10 text-warning border-warning/30">Transferencia</Badge>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {tx.type === 'transfer' ? 'Movimiento entre cuentas' : `${tx.category} · ${tx.account}`}
+                  </p>
                 </div>
               </div>
               <div className="text-right">
-                <p className={cn("text-sm font-semibold", tx.type === 'income' ? "text-success" : "text-foreground")}>
-                  {tx.type === 'expense' ? '–' : '+'} {formatMoney(tx.amount)}
+                <p className={cn("text-sm font-semibold",
+                  tx.type === 'income' ? "text-success" : tx.type === 'transfer' ? "text-warning" : "text-foreground")}>
+                  {tx.type === 'expense' ? '–' : tx.type === 'transfer' ? '↔' : '+'} {formatMoney(tx.amount)}
                 </p>
                 <p className="text-xs text-muted-foreground">{tx.date}</p>
               </div>

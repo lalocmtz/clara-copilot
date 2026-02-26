@@ -164,12 +164,12 @@ export default function StatementImporter({ open, onOpenChange }: { open: boolea
 
       for (const tx of selectedTxs) {
         await addTransaction({
-          type: tx.type === "transfer" ? "expense" : tx.type,
+          type: tx.type,
           amount: tx.amount,
           currency: "MXN",
           date: tx.date,
-          category: tx.category,
-          categoryIcon: tx.categoryIcon,
+          category: tx.type === "transfer" ? "Transferencia" : tx.category,
+          categoryIcon: tx.type === "transfer" ? "↔" : tx.categoryIcon,
           account: selectedAccount,
           merchant: tx.merchant,
         });

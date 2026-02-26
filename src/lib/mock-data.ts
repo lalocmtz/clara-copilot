@@ -1,12 +1,13 @@
 export interface Transaction {
   id: string;
-  type: 'expense' | 'income';
+  type: 'expense' | 'income' | 'transfer';
   amount: number;
   currency: string;
   date: string;
   category: string;
   categoryIcon: string;
   account: string;
+  toAccount?: string;
   notes?: string;
   merchant?: string;
 }

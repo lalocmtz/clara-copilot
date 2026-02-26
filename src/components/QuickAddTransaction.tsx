@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, X } from "lucide-react";
+import { Plus, X, ArrowLeftRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppData } from "@/context/AppContext";
 import { cn } from "@/lib/utils";
@@ -8,6 +8,8 @@ interface Props {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }
+
+type TxType = 'expense' | 'income' | 'transfer';
 
 export default function QuickAddTransaction({ open: controlledOpen, onOpenChange }: Props) {
   const { categories, accounts, addTransaction } = useAppData();
@@ -18,10 +20,11 @@ export default function QuickAddTransaction({ open: controlledOpen, onOpenChange
   const open = controlledOpen ?? internalOpen;
   const setOpen = (v: boolean) => { onOpenChange?.(v); setInternalOpen(v); };
 
-  const [type, setType] = useState<'expense' | 'income'>('expense');
+  const [type, setType] = useState<TxType>('expense');
   const [amount, setAmount] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(activeCats[0]?.id || '');
   const [selectedAccount, setSelectedAccount] = useState(topAccounts[0]?.id || '');
+  const [toAccountId, setToAccountId] = useState('');
   const [notes, setNotes] = useState('');
   const [saved, setSaved] = useState(false);
 
@@ -30,23 +33,40 @@ export default function QuickAddTransaction({ open: controlledOpen, onOpenChange
     if (topAccounts.length && !selectedAccount) setSelectedAccount(topAccounts[0].id);
   }, [activeCats, topAccounts]);
 
+  // Auto-select a different destination account
+  useEffect(() => {
+    if (type === 'transfer' && accounts.length > 1) {
+      const other = accounts.find(a => a.id !== selectedAccount);
+      if (other) setToAccountId(other.id);
+    }
+  }, [type, selectedAccount, accounts]);
+
   const handleSave = () => {
     if (!amount) return;
     const cat = categories.find(c => c.id === selectedCategory);
     const acc = accounts.find(a => a.id === selectedAccount);
+    const toAcc = accounts.find(a => a.id === toAccountId);
+
     addTransaction({
-      type, amount: parseFloat(amount), currency: 'MXN',
+      type,
+      amount: parseFloat(amount),
+      currency: 'MXN',
       date: new Date().toISOString().slice(0, 10),
-      category: cat?.name || 'Otros', categoryIcon: cat?.icon || '📦',
-      account: acc?.name || '', notes: notes || undefined,
+      category: type === 'transfer' ? 'Transferencia' : (cat?.name || 'Otros'),
+      categoryIcon: type === 'transfer' ? '↔' : (cat?.icon || '📦'),
+      account: acc?.name || '',
+      toAccount: type === 'transfer' ? (toAcc?.name || '') : undefined,
+      notes: notes || undefined,
     });
     setSaved(true);
-    setTimeout(() => { setSaved(false); setOpen(false); setAmount(''); setNotes(''); }, 1200);
+    setTimeout(() => { setSaved(false); setOpen(false); setAmount(''); setNotes(''); setType('expense'); }, 1200);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && amount) { e.preventDefault(); handleSave(); }
   };
+
+  const destAccounts = accounts.filter(a => a.id !== selectedAccount);
 
   return (
     <>
@@ -78,34 +98,44 @@ export default function QuickAddTransaction({ open: controlledOpen, onOpenChange
                   </div>
 
                   <div className="flex bg-secondary rounded-lg p-1 mb-6">
-                    <button onClick={() => setType('expense')} className={cn("flex-1 py-2 text-sm font-medium rounded-md transition-all", type === 'expense' ? "bg-card text-foreground shadow-sm" : "text-muted-foreground")}>Gasto</button>
-                    <button onClick={() => setType('income')} className={cn("flex-1 py-2 text-sm font-medium rounded-md transition-all", type === 'income' ? "bg-card text-foreground shadow-sm" : "text-muted-foreground")}>Ingreso</button>
+                    {(['expense', 'income', 'transfer'] as TxType[]).map(t => (
+                      <button key={t} onClick={() => setType(t)}
+                        className={cn("flex-1 py-2 text-sm font-medium rounded-md transition-all",
+                          type === t ? "bg-card text-foreground shadow-sm" : "text-muted-foreground")}>
+                        {t === 'expense' ? 'Gasto' : t === 'income' ? 'Ingreso' : 'Transferencia'}
+                      </button>
+                    ))}
                   </div>
 
                   <div className="mb-6 text-center">
                     <div className="flex items-center justify-center gap-1">
-                      <span className="text-2xl text-muted-foreground font-light">{type === 'expense' ? '–' : '+'} $</span>
+                      <span className="text-2xl text-muted-foreground font-light">
+                        {type === 'expense' ? '–' : type === 'income' ? '+' : '↔'} $
+                      </span>
                       <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} onKeyDown={handleKeyDown}
                         placeholder="0" autoFocus className="text-4xl font-semibold text-foreground bg-transparent outline-none w-40 text-center placeholder:text-muted-foreground/30" />
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">MXN</p>
                   </div>
 
-                  <div className="mb-5">
-                    <label className="text-label mb-2 block">Categoría</label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {activeCats.map((cat) => (
-                        <button key={cat.id} onClick={() => setSelectedCategory(cat.id)}
-                          className={cn("py-2 px-3 rounded-lg text-sm transition-all duration-200 flex items-center gap-2",
-                            selectedCategory === cat.id ? "bg-sidebar-accent text-sidebar-accent-foreground border border-primary/20" : "bg-secondary text-muted-foreground hover:bg-accent")}>
-                          <span>{cat.icon}</span><span className="truncate">{cat.name}</span>
-                        </button>
-                      ))}
+                  {/* Category - hidden for transfers */}
+                  {type !== 'transfer' && (
+                    <div className="mb-5">
+                      <label className="text-label mb-2 block">Categoría</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {activeCats.map((cat) => (
+                          <button key={cat.id} onClick={() => setSelectedCategory(cat.id)}
+                            className={cn("py-2 px-3 rounded-lg text-sm transition-all duration-200 flex items-center gap-2",
+                              selectedCategory === cat.id ? "bg-sidebar-accent text-sidebar-accent-foreground border border-primary/20" : "bg-secondary text-muted-foreground hover:bg-accent")}>
+                            <span>{cat.icon}</span><span className="truncate">{cat.name}</span>
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   <div className="mb-5">
-                    <label className="text-label mb-2 block">Cuenta</label>
+                    <label className="text-label mb-2 block">{type === 'transfer' ? 'Cuenta origen' : 'Cuenta'}</label>
                     <div className="flex gap-2">
                       {topAccounts.map((acc) => (
                         <button key={acc.id} onClick={() => setSelectedAccount(acc.id)}
@@ -117,6 +147,22 @@ export default function QuickAddTransaction({ open: controlledOpen, onOpenChange
                     </div>
                   </div>
 
+                  {/* Destination account for transfers */}
+                  {type === 'transfer' && (
+                    <div className="mb-5">
+                      <label className="text-label mb-2 block">Cuenta destino</label>
+                      <div className="flex gap-2 flex-wrap">
+                        {destAccounts.map((acc) => (
+                          <button key={acc.id} onClick={() => setToAccountId(acc.id)}
+                            className={cn("flex-1 py-2 px-3 rounded-lg text-sm transition-all duration-200",
+                              toAccountId === acc.id ? "bg-sidebar-accent text-sidebar-accent-foreground border border-primary/20" : "bg-secondary text-muted-foreground hover:bg-accent")}>
+                            {acc.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="mb-6">
                     <label className="text-label mb-2 block">Notas (opcional)</label>
                     <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} onKeyDown={handleKeyDown}
@@ -124,7 +170,7 @@ export default function QuickAddTransaction({ open: controlledOpen, onOpenChange
                       className="w-full py-2 px-3 rounded-lg bg-secondary text-foreground text-sm outline-none placeholder:text-muted-foreground/50 focus:ring-2 focus:ring-ring/20 transition-all" />
                   </div>
 
-                  <button onClick={handleSave} disabled={!amount}
+                  <button onClick={handleSave} disabled={!amount || (type === 'transfer' && !toAccountId)}
                     className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-medium text-sm transition-all duration-200 hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed">
                     Guardar
                   </button>

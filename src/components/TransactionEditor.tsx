@@ -5,6 +5,8 @@ import { useAppData } from "@/context/AppContext";
 import { cn } from "@/lib/utils";
 import type { Transaction } from "@/lib/mock-data";
 
+type TxType = 'expense' | 'income' | 'transfer';
+
 interface Props {
   transaction: Transaction | null;
   open: boolean;
@@ -15,20 +17,22 @@ export default function TransactionEditor({ transaction, open, onOpenChange }: P
   const { updateTransaction, deleteTransaction, categories, accounts } = useAppData();
   const activeCats = categories.filter(c => c.active);
 
-  const [type, setType] = useState<'expense' | 'income'>('expense');
+  const [type, setType] = useState<TxType>('expense');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('');
   const [account, setAccount] = useState('');
+  const [toAccount, setToAccount] = useState('');
   const [notes, setNotes] = useState('');
   const [merchant, setMerchant] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     if (transaction) {
-      setType(transaction.type);
+      setType(transaction.type as TxType);
       setAmount(transaction.amount.toString());
       setCategory(transaction.category);
       setAccount(transaction.account);
+      setToAccount(transaction.toAccount || '');
       setNotes(transaction.notes || '');
       setMerchant(transaction.merchant || '');
       setConfirmDelete(false);
@@ -41,8 +45,14 @@ export default function TransactionEditor({ transaction, open, onOpenChange }: P
     if (!amount) return;
     const cat = activeCats.find(c => c.name === category);
     updateTransaction(transaction.id, {
-      type, amount: parseFloat(amount), category, account, notes: notes || undefined, merchant: merchant || undefined,
-      categoryIcon: cat?.icon || transaction.categoryIcon,
+      type,
+      amount: parseFloat(amount),
+      category: type === 'transfer' ? 'Transferencia' : category,
+      account,
+      toAccount: type === 'transfer' ? toAccount : undefined,
+      notes: notes || undefined,
+      merchant: merchant || undefined,
+      categoryIcon: type === 'transfer' ? '↔' : (cat?.icon || transaction.categoryIcon),
     });
     onOpenChange(false);
   };
@@ -52,6 +62,8 @@ export default function TransactionEditor({ transaction, open, onOpenChange }: P
     deleteTransaction(transaction.id);
     onOpenChange(false);
   };
+
+  const destAccounts = accounts.filter(a => a.name !== account);
 
   return (
     <AnimatePresence>
@@ -74,10 +86,10 @@ export default function TransactionEditor({ transaction, open, onOpenChange }: P
 
             {/* Type toggle */}
             <div className="flex bg-secondary rounded-lg p-1 mb-5">
-              {(['expense', 'income'] as const).map(t => (
+              {(['expense', 'income', 'transfer'] as TxType[]).map(t => (
                 <button key={t} onClick={() => setType(t)}
                   className={cn("flex-1 py-2 text-sm font-medium rounded-md transition-all", type === t ? "bg-card text-foreground shadow-sm" : "text-muted-foreground")}>
-                  {t === 'expense' ? 'Gasto' : 'Ingreso'}
+                  {t === 'expense' ? 'Gasto' : t === 'income' ? 'Ingreso' : 'Transferencia'}
                 </button>
               ))}
             </div>
@@ -85,29 +97,33 @@ export default function TransactionEditor({ transaction, open, onOpenChange }: P
             {/* Amount */}
             <div className="mb-5 text-center">
               <div className="flex items-center justify-center gap-1">
-                <span className="text-2xl text-muted-foreground font-light">{type === 'expense' ? '–' : '+'} $</span>
+                <span className="text-2xl text-muted-foreground font-light">
+                  {type === 'expense' ? '–' : type === 'income' ? '+' : '↔'} $
+                </span>
                 <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
                   className="text-4xl font-semibold text-foreground bg-transparent outline-none w-40 text-center" />
               </div>
             </div>
 
-            {/* Category */}
-            <div className="mb-4">
-              <label className="text-label mb-2 block">Categoría</label>
-              <div className="grid grid-cols-3 gap-2">
-                {activeCats.map(c => (
-                  <button key={c.id} onClick={() => setCategory(c.name)}
-                    className={cn("py-2 px-3 rounded-lg text-sm flex items-center gap-2 transition-all",
-                      category === c.name ? "bg-sidebar-accent text-sidebar-accent-foreground border border-primary/20" : "bg-secondary text-muted-foreground hover:bg-accent")}>
-                    <span>{c.icon}</span><span className="truncate">{c.name}</span>
-                  </button>
-                ))}
+            {/* Category - hidden for transfers */}
+            {type !== 'transfer' && (
+              <div className="mb-4">
+                <label className="text-label mb-2 block">Categoría</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {activeCats.map(c => (
+                    <button key={c.id} onClick={() => setCategory(c.name)}
+                      className={cn("py-2 px-3 rounded-lg text-sm flex items-center gap-2 transition-all",
+                        category === c.name ? "bg-sidebar-accent text-sidebar-accent-foreground border border-primary/20" : "bg-secondary text-muted-foreground hover:bg-accent")}>
+                      <span>{c.icon}</span><span className="truncate">{c.name}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Account */}
             <div className="mb-4">
-              <label className="text-label mb-2 block">Cuenta</label>
+              <label className="text-label mb-2 block">{type === 'transfer' ? 'Cuenta origen' : 'Cuenta'}</label>
               <div className="flex gap-2 flex-wrap">
                 {accounts.map(a => (
                   <button key={a.id} onClick={() => setAccount(a.name)}
@@ -118,6 +134,22 @@ export default function TransactionEditor({ transaction, open, onOpenChange }: P
                 ))}
               </div>
             </div>
+
+            {/* Destination account for transfers */}
+            {type === 'transfer' && (
+              <div className="mb-4">
+                <label className="text-label mb-2 block">Cuenta destino</label>
+                <div className="flex gap-2 flex-wrap">
+                  {destAccounts.map(a => (
+                    <button key={a.id} onClick={() => setToAccount(a.name)}
+                      className={cn("py-2 px-3 rounded-lg text-sm transition-all",
+                        toAccount === a.name ? "bg-sidebar-accent text-sidebar-accent-foreground border border-primary/20" : "bg-secondary text-muted-foreground hover:bg-accent")}>
+                      {a.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Merchant */}
             <div className="mb-4">
@@ -141,7 +173,7 @@ export default function TransactionEditor({ transaction, open, onOpenChange }: P
                 <Trash2 className="w-4 h-4" />
                 {confirmDelete ? '¿Seguro? Confirmar' : 'Eliminar'}
               </button>
-              <button onClick={handleSave} disabled={!amount}
+              <button onClick={handleSave} disabled={!amount || (type === 'transfer' && !toAccount)}
                 className="flex-1 py-3 rounded-xl bg-primary text-primary-foreground font-medium text-sm transition-all hover:opacity-90 disabled:opacity-40">
                 Guardar cambios
               </button>
