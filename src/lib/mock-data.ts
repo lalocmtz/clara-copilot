@@ -14,12 +14,13 @@ export interface Transaction {
 export interface Account {
   id: string;
   name: string;
-  type: 'checking' | 'savings' | 'credit';
+  type: 'checking' | 'savings' | 'credit' | 'debt';
   balance: number;
   currency: string;
   creditLimit?: number;
   cutoffDate?: number;
   paymentDate?: number;
+  debtTo?: string;
 }
 
 export interface Budget {
