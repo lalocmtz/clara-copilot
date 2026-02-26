@@ -6,6 +6,7 @@ import QuickAddTransaction from "@/components/QuickAddTransaction";
 import TransactionEditor from "@/components/TransactionEditor";
 import { useAppData } from "@/context/AppContext";
 import { Plus, SlidersHorizontal, Wallet, CalendarClock } from "lucide-react";
+import TelegramLink from "@/components/TelegramLink";
 import type { Transaction } from "@/lib/mock-data";
 
 const fadeIn = {
@@ -75,7 +76,7 @@ export default function Index() {
         </motion.div>
 
         {/* Quick Actions */}
-        <motion.div {...fadeIn} transition={{ delay: 0.08 }} className="grid grid-cols-3 gap-3">
+        <motion.div {...fadeIn} transition={{ delay: 0.08 }} className="grid grid-cols-4 gap-3">
           <button onClick={() => setQuickAddOpen(true)} className="card-calm p-3 flex flex-col items-center gap-2 hover:bg-accent/50 transition-colors">
             <Plus className="w-5 h-5 text-primary" /><span className="text-xs font-medium text-foreground">Registrar</span>
           </button>
@@ -85,6 +86,7 @@ export default function Index() {
           <button onClick={() => navigate('/accounts')} className="card-calm p-3 flex flex-col items-center gap-2 hover:bg-accent/50 transition-colors">
             <Wallet className="w-5 h-5 text-muted-foreground" /><span className="text-xs font-medium text-foreground">Balances</span>
           </button>
+          <TelegramLink />
         </motion.div>
 
         {/* Este mes */}
