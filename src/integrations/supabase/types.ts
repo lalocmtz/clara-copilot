@@ -179,32 +179,44 @@ export type Database = {
       subscriptions: {
         Row: {
           amount: number
+          billing_day: number | null
+          category: string | null
+          category_icon: string
           created_at: string
           frequency: string
           id: string
           name: string
           next_date: string
           paid: boolean
+          sub_type: string
           user_id: string
         }
         Insert: {
           amount: number
+          billing_day?: number | null
+          category?: string | null
+          category_icon?: string
           created_at?: string
           frequency?: string
           id?: string
           name: string
           next_date: string
           paid?: boolean
+          sub_type?: string
           user_id: string
         }
         Update: {
           amount?: number
+          billing_day?: number | null
+          category?: string | null
+          category_icon?: string
           created_at?: string
           frequency?: string
           id?: string
           name?: string
           next_date?: string
           paid?: boolean
+          sub_type?: string
           user_id?: string
         }
         Relationships: []
