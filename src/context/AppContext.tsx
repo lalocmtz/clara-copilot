@@ -50,8 +50,10 @@ interface AppContextType {
   addCategory: (c: Omit<Category, "id" | "active">) => void;
   updateCategory: (id: string, c: Partial<Category>) => void;
   toggleCategory: (id: string) => void;
+  deleteCategory: (id: string) => void;
 
   resetAll: () => void;
+  refetchData: () => void;
 
   monthlyTotals: { income: number; expenses: number };
   topCategories: { name: string; icon: string; amount: number; percentage: number }[];
@@ -383,6 +385,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCategories(prev => prev.map(c => c.id === id ? { ...c, active: newActive } : c));
   }, [categories]);
 
+  const deleteCategory = useCallback(async (id: string) => {
+    if (!user) return;
+    // Delete associated budgets for this category
+    const cat = categories.find(c => c.id === id);
+    if (cat) {
+      await supabase.from("budgets").delete().eq("user_id", user.id).eq("category", cat.name);
+      setBudgets(prev => prev.filter(b => b.category !== cat.name));
+    }
+    await supabase.from("categories").delete().eq("id", id);
+    setCategories(prev => prev.filter(c => c.id !== id));
+  }, [user, categories]);
+
+  const refetchData = useCallback(() => {
+    loadAllData();
+  }, [user]);
+
   const resetAll = useCallback(async () => {
     if (!user) return;
     await Promise.all([
@@ -427,15 +445,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     updateBudget, addBudget, deleteBudget,
     addSubscription, updateSubscription, deleteSubscription,
     addInvestment, updateInvestment, deleteInvestment,
-    addCategory, updateCategory, toggleCategory,
-    resetAll,
+    addCategory, updateCategory, toggleCategory, deleteCategory,
+    resetAll, refetchData,
     monthlyTotals, topCategories,
   }), [transactions, accounts, budgets, subscriptions, investments, categories, loading,
     monthlyTotals, topCategories, addTransaction, updateTransaction, deleteTransaction,
     addAccount, updateAccount, deleteAccount, updateBudget, addBudget, deleteBudget,
     addSubscription, updateSubscription, deleteSubscription,
     addInvestment, updateInvestment, deleteInvestment,
-    addCategory, updateCategory, toggleCategory, resetAll]);
+    addCategory, updateCategory, toggleCategory, deleteCategory, resetAll, refetchData]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
