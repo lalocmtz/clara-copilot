@@ -14,7 +14,243 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      accounts: {
+        Row: {
+          balance: number
+          created_at: string
+          credit_limit: number | null
+          currency: string
+          cutoff_date: number | null
+          id: string
+          name: string
+          payment_date: number | null
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          balance?: number
+          created_at?: string
+          credit_limit?: number | null
+          currency?: string
+          cutoff_date?: number | null
+          id?: string
+          name: string
+          payment_date?: number | null
+          type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          balance?: number
+          created_at?: string
+          credit_limit?: number | null
+          currency?: string
+          cutoff_date?: number | null
+          id?: string
+          name?: string
+          payment_date?: number | null
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      budgets: {
+        Row: {
+          budgeted: number
+          category: string
+          category_icon: string
+          created_at: string
+          id: string
+          period: string
+          spent: number
+          user_id: string
+        }
+        Insert: {
+          budgeted?: number
+          category: string
+          category_icon?: string
+          created_at?: string
+          id?: string
+          period?: string
+          spent?: number
+          user_id: string
+        }
+        Update: {
+          budgeted?: number
+          category?: string
+          category_icon?: string
+          created_at?: string
+          id?: string
+          period?: string
+          spent?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      categories: {
+        Row: {
+          active: boolean
+          created_at: string
+          icon: string
+          id: string
+          name: string
+          sort_order: number
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          icon?: string
+          id?: string
+          name: string
+          sort_order?: number
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          icon?: string
+          id?: string
+          name?: string
+          sort_order?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      investments: {
+        Row: {
+          cost_basis: number
+          created_at: string
+          current_value: number
+          id: string
+          last_updated: string
+          name: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          cost_basis?: number
+          created_at?: string
+          current_value?: number
+          id?: string
+          last_updated?: string
+          name: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          cost_basis?: number
+          created_at?: string
+          current_value?: number
+          id?: string
+          last_updated?: string
+          name?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      subscriptions: {
+        Row: {
+          amount: number
+          created_at: string
+          frequency: string
+          id: string
+          name: string
+          next_date: string
+          paid: boolean
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          frequency?: string
+          id?: string
+          name: string
+          next_date: string
+          paid?: boolean
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          frequency?: string
+          id?: string
+          name?: string
+          next_date?: string
+          paid?: boolean
+          user_id?: string
+        }
+        Relationships: []
+      }
+      transactions: {
+        Row: {
+          account: string
+          amount: number
+          category: string
+          category_icon: string
+          created_at: string
+          currency: string
+          date: string
+          id: string
+          merchant: string | null
+          notes: string | null
+          type: string
+          user_id: string
+        }
+        Insert: {
+          account: string
+          amount: number
+          category: string
+          category_icon?: string
+          created_at?: string
+          currency?: string
+          date?: string
+          id?: string
+          merchant?: string | null
+          notes?: string | null
+          type: string
+          user_id: string
+        }
+        Update: {
+          account?: string
+          amount?: number
+          category?: string
+          category_icon?: string
+          created_at?: string
+          currency?: string
+          date?: string
+          id?: string
+          merchant?: string | null
+          notes?: string | null
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
