@@ -1,6 +1,10 @@
 import { useState, useEffect } from "react";
-import { X, Trash2, CalendarPlus, Check } from "lucide-react";
+import { X, Trash2, CalendarPlus, Check, CalendarIcon } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { useAppData } from "@/context/AppContext";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -26,6 +30,7 @@ export default function TransactionEditor({ transaction, open, onOpenChange }: P
   const [toAccount, setToAccount] = useState('');
   const [notes, setNotes] = useState('');
   const [merchant, setMerchant] = useState('');
+  const [date, setDate] = useState<Date>(new Date());
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [addedAsSub, setAddedAsSub] = useState(false);
 
@@ -38,6 +43,7 @@ export default function TransactionEditor({ transaction, open, onOpenChange }: P
       setToAccount(transaction.toAccount || '');
       setNotes(transaction.notes || '');
       setMerchant(transaction.merchant || '');
+      setDate(transaction.date ? new Date(transaction.date + 'T12:00:00') : new Date());
       setConfirmDelete(false);
       setAddedAsSub(false);
     }
@@ -51,6 +57,7 @@ export default function TransactionEditor({ transaction, open, onOpenChange }: P
     updateTransaction(transaction.id, {
       type,
       amount: parseFloat(amount),
+      date: date.toISOString().slice(0, 10),
       category: type === 'transfer' ? 'Transferencia' : category,
       account,
       toAccount: type === 'transfer' ? toAccount : undefined,
@@ -107,6 +114,17 @@ export default function TransactionEditor({ transaction, open, onOpenChange }: P
                 <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
                   className="text-4xl font-semibold text-foreground bg-transparent outline-none w-40 text-center" />
               </div>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-secondary text-foreground text-sm hover:bg-accent transition-colors">
+                    <CalendarIcon className="w-4 h-4 text-muted-foreground" />
+                    {format(date, "d MMM yyyy", { locale: es })}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="center">
+                  <Calendar mode="single" selected={date} onSelect={(d) => d && setDate(d)} initialFocus className="p-3 pointer-events-auto" />
+                </PopoverContent>
+              </Popover>
             </div>
 
             {/* Category - hidden for transfers */}

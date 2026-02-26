@@ -1,6 +1,10 @@
 import { useState, useEffect } from "react";
-import { Plus, X, ArrowLeftRight } from "lucide-react";
+import { Plus, X, ArrowLeftRight, CalendarIcon } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { useAppData } from "@/context/AppContext";
 import { cn } from "@/lib/utils";
 
@@ -28,6 +32,7 @@ export default function QuickAddTransaction({ open: controlledOpen, onOpenChange
   const [selectedAccount, setSelectedAccount] = useState(topAccounts[0]?.id || '');
   const [toAccountId, setToAccountId] = useState('');
   const [notes, setNotes] = useState('');
+  const [date, setDate] = useState<Date>(new Date());
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
@@ -58,7 +63,7 @@ export default function QuickAddTransaction({ open: controlledOpen, onOpenChange
       type,
       amount: parseFloat(amount),
       currency: 'MXN',
-      date: new Date().toISOString().slice(0, 10),
+      date: date.toISOString().slice(0, 10),
       category: type === 'transfer' ? 'Transferencia' : (cat?.name || 'Otros'),
       categoryIcon: type === 'transfer' ? '↔' : (cat?.icon || '📦'),
       account: acc?.name || '',
@@ -66,7 +71,7 @@ export default function QuickAddTransaction({ open: controlledOpen, onOpenChange
       notes: notes || undefined,
     });
     setSaved(true);
-    setTimeout(() => { setSaved(false); setOpen(false); setAmount(''); setNotes(''); setType('expense'); }, 1200);
+    setTimeout(() => { setSaved(false); setOpen(false); setAmount(''); setNotes(''); setDate(new Date()); setType('expense'); }, 1200);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -123,6 +128,17 @@ export default function QuickAddTransaction({ open: controlledOpen, onOpenChange
                         placeholder="0" autoFocus className="text-4xl font-semibold text-foreground bg-transparent outline-none w-40 text-center placeholder:text-muted-foreground/30" />
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">MXN</p>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-secondary text-foreground text-sm hover:bg-accent transition-colors">
+                          <CalendarIcon className="w-4 h-4 text-muted-foreground" />
+                          {format(date, "d MMM yyyy", { locale: es })}
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="center">
+                        <Calendar mode="single" selected={date} onSelect={(d) => d && setDate(d)} initialFocus className="p-3 pointer-events-auto" />
+                      </PopoverContent>
+                    </Popover>
                   </div>
 
                   {/* Category - hidden for transfers */}
