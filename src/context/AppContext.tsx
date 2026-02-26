@@ -1,4 +1,6 @@
-import { createContext, useContext, useState, useMemo, useCallback, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useMemo, useCallback, ReactNode } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/context/AuthContext";
 import {
   transactions as defaultTransactions,
   accounts as defaultAccounts,
@@ -23,6 +25,7 @@ interface AppContextType {
   subscriptions: Subscription[];
   investments: Investment[];
   categories: Category[];
+  loading: boolean;
 
   addTransaction: (t: Omit<Transaction, "id">) => void;
   updateTransaction: (id: string, t: Partial<Transaction>) => void;
@@ -48,96 +51,320 @@ interface AppContextType {
 
   resetAll: () => void;
 
-  // Computed
   monthlyTotals: { income: number; expenses: number };
   topCategories: { name: string; icon: string; amount: number; percentage: number }[];
 }
 
 const AppContext = createContext<AppContextType | null>(null);
 
-function genId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-}
-
-const initCategories: Category[] = defaultCategories.map(c => ({ ...c, active: true }));
-
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [transactions, setTransactions] = useState<Transaction[]>([...defaultTransactions]);
-  const [accounts, setAccounts] = useState<Account[]>([...defaultAccounts]);
-  const [budgets, setBudgets] = useState<Budget[]>([...defaultBudgets]);
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>([...defaultSubscriptions]);
-  const [investments, setInvestments] = useState<Investment[]>([...defaultInvestments]);
-  const [categories, setCategories] = useState<Category[]>([...initCategories]);
+  const { user } = useAuth();
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [investments, setInvestments] = useState<Investment[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Transactions
-  const addTransaction = useCallback((t: Omit<Transaction, "id">) => {
-    setTransactions(prev => [{ ...t, id: genId() }, ...prev]);
-  }, []);
-  const updateTransaction = useCallback((id: string, t: Partial<Transaction>) => {
+  // Load all data when user changes
+  useEffect(() => {
+    if (!user) {
+      setTransactions([]); setAccounts([]); setBudgets([]);
+      setSubscriptions([]); setInvestments([]); setCategories([]);
+      setLoading(false);
+      return;
+    }
+    loadAllData();
+  }, [user]);
+
+  async function loadAllData() {
+    if (!user) return;
+    setLoading(true);
+
+    const [txRes, accRes, budRes, subRes, invRes, catRes] = await Promise.all([
+      supabase.from("transactions").select("*").eq("user_id", user.id).order("date", { ascending: false }),
+      supabase.from("accounts").select("*").eq("user_id", user.id),
+      supabase.from("budgets").select("*").eq("user_id", user.id),
+      supabase.from("subscriptions").select("*").eq("user_id", user.id),
+      supabase.from("investments").select("*").eq("user_id", user.id),
+      supabase.from("categories").select("*").eq("user_id", user.id).order("sort_order"),
+    ]);
+
+    // Map DB rows to app types
+    const mapTx = (r: any): Transaction => ({
+      id: r.id, type: r.type, amount: Number(r.amount), currency: r.currency,
+      date: r.date, category: r.category, categoryIcon: r.category_icon,
+      account: r.account, notes: r.notes, merchant: r.merchant,
+    });
+    const mapAcc = (r: any): Account => ({
+      id: r.id, name: r.name, type: r.type, balance: Number(r.balance), currency: r.currency,
+      creditLimit: r.credit_limit ? Number(r.credit_limit) : undefined,
+      cutoffDate: r.cutoff_date ?? undefined, paymentDate: r.payment_date ?? undefined,
+    });
+    const mapBudget = (r: any): Budget => ({
+      id: r.id, category: r.category, categoryIcon: r.category_icon,
+      budgeted: Number(r.budgeted), spent: Number(r.spent), period: r.period,
+    });
+    const mapSub = (r: any): Subscription => ({
+      id: r.id, name: r.name, amount: Number(r.amount),
+      frequency: r.frequency, nextDate: r.next_date, paid: r.paid,
+    });
+    const mapInv = (r: any): Investment => ({
+      id: r.id, name: r.name, type: r.type, current_value: Number(r.current_value),
+      cost_basis: Number(r.cost_basis), last_updated: r.last_updated,
+    });
+    const mapCat = (r: any): Category => ({
+      id: r.id, name: r.name, icon: r.icon, active: r.active,
+    });
+
+    const txData = (txRes.data || []).map(mapTx);
+    const accData = (accRes.data || []).map(mapAcc);
+    const budData = (budRes.data || []).map(mapBudget);
+    const subData = (subRes.data || []).map(mapSub);
+    const invData = (invRes.data || []).map(mapInv);
+    const catData = (catRes.data || []).map(mapCat);
+
+    // If no data at all, seed with demo data
+    if (txData.length === 0 && accData.length === 0 && catData.length === 0) {
+      await seedDemoData();
+      await loadAllData(); // Reload after seeding
+      return;
+    }
+
+    setTransactions(txData);
+    setAccounts(accData);
+    setBudgets(budData);
+    setSubscriptions(subData);
+    setInvestments(invData);
+    setCategories(catData);
+    setLoading(false);
+  }
+
+  async function seedDemoData() {
+    if (!user) return;
+    const uid = user.id;
+
+    // Seed categories
+    const catInserts = defaultCategories.map((c, i) => ({
+      user_id: uid, name: c.name, icon: c.icon, active: true, sort_order: i,
+    }));
+    await supabase.from("categories").insert(catInserts);
+
+    // Seed accounts
+    const accInserts = defaultAccounts.map(a => ({
+      user_id: uid, name: a.name, type: a.type, balance: a.balance, currency: a.currency,
+      credit_limit: a.creditLimit ?? null, cutoff_date: a.cutoffDate ?? null, payment_date: a.paymentDate ?? null,
+    }));
+    await supabase.from("accounts").insert(accInserts);
+
+    // Seed transactions
+    const txInserts = defaultTransactions.map(t => ({
+      user_id: uid, type: t.type, amount: t.amount, currency: t.currency, date: t.date,
+      category: t.category, category_icon: t.categoryIcon, account: t.account,
+      notes: t.notes ?? null, merchant: t.merchant ?? null,
+    }));
+    await supabase.from("transactions").insert(txInserts);
+
+    // Seed budgets
+    const budInserts = defaultBudgets.map(b => ({
+      user_id: uid, category: b.category, category_icon: b.categoryIcon,
+      budgeted: b.budgeted, spent: b.spent, period: b.period,
+    }));
+    await supabase.from("budgets").insert(budInserts);
+
+    // Seed subscriptions
+    const subInserts = defaultSubscriptions.map(s => ({
+      user_id: uid, name: s.name, amount: s.amount, frequency: s.frequency,
+      next_date: s.nextDate, paid: s.paid,
+    }));
+    await supabase.from("subscriptions").insert(subInserts);
+
+    // Seed investments
+    const invInserts = defaultInvestments.map(i => ({
+      user_id: uid, name: i.name, type: i.type, current_value: i.current_value,
+      cost_basis: i.cost_basis, last_updated: i.last_updated,
+    }));
+    await supabase.from("investments").insert(invInserts);
+  }
+
+  // === CRUD functions that write to DB and update local state ===
+
+  const addTransaction = useCallback(async (t: Omit<Transaction, "id">) => {
+    if (!user) return;
+    const { data, error } = await supabase.from("transactions").insert({
+      user_id: user.id, type: t.type, amount: t.amount, currency: t.currency, date: t.date,
+      category: t.category, category_icon: t.categoryIcon, account: t.account,
+      notes: t.notes ?? null, merchant: t.merchant ?? null,
+    }).select().single();
+    if (data && !error) {
+      setTransactions(prev => [{
+        id: data.id, type: data.type as Transaction['type'], amount: Number(data.amount), currency: data.currency,
+        date: data.date, category: data.category, categoryIcon: data.category_icon,
+        account: data.account, notes: data.notes ?? undefined, merchant: data.merchant ?? undefined,
+      }, ...prev]);
+    }
+  }, [user]);
+
+  const updateTransaction = useCallback(async (id: string, t: Partial<Transaction>) => {
+    const updates: any = {};
+    if (t.type !== undefined) updates.type = t.type;
+    if (t.amount !== undefined) updates.amount = t.amount;
+    if (t.category !== undefined) updates.category = t.category;
+    if (t.categoryIcon !== undefined) updates.category_icon = t.categoryIcon;
+    if (t.account !== undefined) updates.account = t.account;
+    if (t.notes !== undefined) updates.notes = t.notes;
+    if (t.merchant !== undefined) updates.merchant = t.merchant;
+    await supabase.from("transactions").update(updates).eq("id", id);
     setTransactions(prev => prev.map(tx => tx.id === id ? { ...tx, ...t } : tx));
   }, []);
-  const deleteTransaction = useCallback((id: string) => {
+
+  const deleteTransaction = useCallback(async (id: string) => {
+    await supabase.from("transactions").delete().eq("id", id);
     setTransactions(prev => prev.filter(tx => tx.id !== id));
   }, []);
 
-  // Accounts
-  const addAccount = useCallback((a: Omit<Account, "id">) => {
-    setAccounts(prev => [...prev, { ...a, id: genId() }]);
-  }, []);
-  const updateAccount = useCallback((id: string, a: Partial<Account>) => {
+  const addAccount = useCallback(async (a: Omit<Account, "id">) => {
+    if (!user) return;
+    const { data } = await supabase.from("accounts").insert({
+      user_id: user.id, name: a.name, type: a.type, balance: a.balance, currency: a.currency,
+      credit_limit: a.creditLimit ?? null, cutoff_date: a.cutoffDate ?? null, payment_date: a.paymentDate ?? null,
+    }).select().single();
+    if (data) {
+      setAccounts(prev => [...prev, {
+        id: data.id, name: data.name, type: data.type as Account['type'], balance: Number(data.balance),
+        currency: data.currency, creditLimit: data.credit_limit ? Number(data.credit_limit) : undefined,
+        cutoffDate: data.cutoff_date ?? undefined, paymentDate: data.payment_date ?? undefined,
+      }]);
+    }
+  }, [user]);
+
+  const updateAccount = useCallback(async (id: string, a: Partial<Account>) => {
+    const updates: any = {};
+    if (a.name !== undefined) updates.name = a.name;
+    if (a.type !== undefined) updates.type = a.type;
+    if (a.balance !== undefined) updates.balance = a.balance;
+    if (a.creditLimit !== undefined) updates.credit_limit = a.creditLimit;
+    if (a.cutoffDate !== undefined) updates.cutoff_date = a.cutoffDate;
+    if (a.paymentDate !== undefined) updates.payment_date = a.paymentDate;
+    await supabase.from("accounts").update(updates).eq("id", id);
     setAccounts(prev => prev.map(acc => acc.id === id ? { ...acc, ...a } : acc));
   }, []);
-  const deleteAccount = useCallback((id: string) => {
+
+  const deleteAccount = useCallback(async (id: string) => {
+    await supabase.from("accounts").delete().eq("id", id);
     setAccounts(prev => prev.filter(acc => acc.id !== id));
   }, []);
 
-  // Budgets
-  const updateBudget = useCallback((id: string, b: Partial<Budget>) => {
+  const updateBudget = useCallback(async (id: string, b: Partial<Budget>) => {
+    const updates: any = {};
+    if (b.budgeted !== undefined) updates.budgeted = b.budgeted;
+    if (b.spent !== undefined) updates.spent = b.spent;
+    await supabase.from("budgets").update(updates).eq("id", id);
     setBudgets(prev => prev.map(bgt => bgt.id === id ? { ...bgt, ...b } : bgt));
   }, []);
-  const addBudget = useCallback((b: Omit<Budget, "id">) => {
-    setBudgets(prev => [...prev, { ...b, id: genId() }]);
-  }, []);
-  const deleteBudget = useCallback((id: string) => {
+
+  const addBudget = useCallback(async (b: Omit<Budget, "id">) => {
+    if (!user) return;
+    const { data } = await supabase.from("budgets").insert({
+      user_id: user.id, category: b.category, category_icon: b.categoryIcon,
+      budgeted: b.budgeted, spent: b.spent, period: b.period,
+    }).select().single();
+    if (data) {
+      setBudgets(prev => [...prev, {
+        id: data.id, category: data.category, categoryIcon: data.category_icon,
+        budgeted: Number(data.budgeted), spent: Number(data.spent), period: data.period,
+      }]);
+    }
+  }, [user]);
+
+  const deleteBudget = useCallback(async (id: string) => {
+    await supabase.from("budgets").delete().eq("id", id);
     setBudgets(prev => prev.filter(b => b.id !== id));
   }, []);
 
-  // Subscriptions
-  const addSubscription = useCallback((s: Omit<Subscription, "id">) => {
-    setSubscriptions(prev => [...prev, { ...s, id: genId() }]);
-  }, []);
-  const updateSubscription = useCallback((id: string, s: Partial<Subscription>) => {
+  const addSubscription = useCallback(async (s: Omit<Subscription, "id">) => {
+    if (!user) return;
+    const { data } = await supabase.from("subscriptions").insert({
+      user_id: user.id, name: s.name, amount: s.amount, frequency: s.frequency,
+      next_date: s.nextDate, paid: s.paid,
+    }).select().single();
+    if (data) {
+      setSubscriptions(prev => [...prev, {
+        id: data.id, name: data.name, amount: Number(data.amount),
+        frequency: data.frequency as Subscription['frequency'], nextDate: data.next_date, paid: data.paid,
+      }]);
+    }
+  }, [user]);
+
+  const updateSubscription = useCallback(async (id: string, s: Partial<Subscription>) => {
+    const updates: any = {};
+    if (s.name !== undefined) updates.name = s.name;
+    if (s.amount !== undefined) updates.amount = s.amount;
+    if (s.frequency !== undefined) updates.frequency = s.frequency;
+    if (s.nextDate !== undefined) updates.next_date = s.nextDate;
+    if (s.paid !== undefined) updates.paid = s.paid;
+    await supabase.from("subscriptions").update(updates).eq("id", id);
     setSubscriptions(prev => prev.map(sub => sub.id === id ? { ...sub, ...s } : sub));
   }, []);
-  const deleteSubscription = useCallback((id: string) => {
+
+  const deleteSubscription = useCallback(async (id: string) => {
+    await supabase.from("subscriptions").delete().eq("id", id);
     setSubscriptions(prev => prev.filter(sub => sub.id !== id));
   }, []);
 
-  // Investments
-  const updateInvestment = useCallback((id: string, i: Partial<Investment>) => {
+  const updateInvestment = useCallback(async (id: string, i: Partial<Investment>) => {
+    const updates: any = {};
+    if (i.current_value !== undefined) updates.current_value = i.current_value;
+    if (i.cost_basis !== undefined) updates.cost_basis = i.cost_basis;
+    if (i.name !== undefined) updates.name = i.name;
+    if (i.type !== undefined) updates.type = i.type;
+    await supabase.from("investments").update(updates).eq("id", id);
     setInvestments(prev => prev.map(inv => inv.id === id ? { ...inv, ...i } : inv));
   }, []);
 
-  // Categories
-  const addCategory = useCallback((c: Omit<Category, "id" | "active">) => {
-    setCategories(prev => [...prev, { ...c, id: genId(), active: true }]);
-  }, []);
-  const updateCategory = useCallback((id: string, c: Partial<Category>) => {
+  const addCategory = useCallback(async (c: Omit<Category, "id" | "active">) => {
+    if (!user) return;
+    const { data } = await supabase.from("categories").insert({
+      user_id: user.id, name: c.name, icon: c.icon, active: true,
+    }).select().single();
+    if (data) {
+      setCategories(prev => [...prev, { id: data.id, name: data.name, icon: data.icon, active: data.active }]);
+    }
+  }, [user]);
+
+  const updateCategory = useCallback(async (id: string, c: Partial<Category>) => {
+    const updates: any = {};
+    if (c.name !== undefined) updates.name = c.name;
+    if (c.icon !== undefined) updates.icon = c.icon;
+    if (c.active !== undefined) updates.active = c.active;
+    await supabase.from("categories").update(updates).eq("id", id);
     setCategories(prev => prev.map(cat => cat.id === id ? { ...cat, ...c } : cat));
   }, []);
-  const toggleCategory = useCallback((id: string) => {
-    setCategories(prev => prev.map(cat => cat.id === id ? { ...cat, active: !cat.active } : cat));
-  }, []);
 
-  // Reset
-  const resetAll = useCallback(() => {
-    setTransactions([...defaultTransactions]);
-    setAccounts([...defaultAccounts]);
-    setBudgets([...defaultBudgets]);
-    setSubscriptions([...defaultSubscriptions]);
-    setInvestments([...defaultInvestments]);
-    setCategories([...initCategories]);
-  }, []);
+  const toggleCategory = useCallback(async (id: string) => {
+    const cat = categories.find(c => c.id === id);
+    if (!cat) return;
+    const newActive = !cat.active;
+    await supabase.from("categories").update({ active: newActive }).eq("id", id);
+    setCategories(prev => prev.map(c => c.id === id ? { ...c, active: newActive } : c));
+  }, [categories]);
+
+  const resetAll = useCallback(async () => {
+    if (!user) return;
+    // Delete all user data
+    await Promise.all([
+      supabase.from("transactions").delete().eq("user_id", user.id),
+      supabase.from("accounts").delete().eq("user_id", user.id),
+      supabase.from("budgets").delete().eq("user_id", user.id),
+      supabase.from("subscriptions").delete().eq("user_id", user.id),
+      supabase.from("investments").delete().eq("user_id", user.id),
+      supabase.from("categories").delete().eq("user_id", user.id),
+    ]);
+    // Re-seed and reload
+    await seedDemoData();
+    await loadAllData();
+  }, [user]);
 
   // Computed
   const monthlyTotals = useMemo(() => {
@@ -161,7 +388,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [transactions]);
 
   const value = useMemo(() => ({
-    transactions, accounts, budgets, subscriptions, investments, categories,
+    transactions, accounts, budgets, subscriptions, investments, categories, loading,
     addTransaction, updateTransaction, deleteTransaction,
     addAccount, updateAccount, deleteAccount,
     updateBudget, addBudget, deleteBudget,
@@ -170,10 +397,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     addCategory, updateCategory, toggleCategory,
     resetAll,
     monthlyTotals, topCategories,
-  }), [transactions, accounts, budgets, subscriptions, investments, categories, monthlyTotals, topCategories,
-    addTransaction, updateTransaction, deleteTransaction, addAccount, updateAccount, deleteAccount,
-    updateBudget, addBudget, deleteBudget, addSubscription, updateSubscription, deleteSubscription,
-    updateInvestment, addCategory, updateCategory, toggleCategory, resetAll]);
+  }), [transactions, accounts, budgets, subscriptions, investments, categories, loading,
+    monthlyTotals, topCategories, addTransaction, updateTransaction, deleteTransaction,
+    addAccount, updateAccount, deleteAccount, updateBudget, addBudget, deleteBudget,
+    addSubscription, updateSubscription, deleteSubscription, updateInvestment,
+    addCategory, updateCategory, toggleCategory, resetAll]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
