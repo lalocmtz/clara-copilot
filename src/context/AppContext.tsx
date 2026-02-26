@@ -61,6 +61,17 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | null>(null);
 
+function calcNextDate(billingDay: number): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const today = now.getDate();
+  if (today < billingDay) {
+    return new Date(y, m, billingDay).toISOString().slice(0, 10);
+  }
+  return new Date(y, m + 1, billingDay).toISOString().slice(0, 10);
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -117,7 +128,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
     const mapSub = (r: any): Subscription => ({
       id: r.id, name: r.name, amount: Number(r.amount),
-      frequency: r.frequency, nextDate: r.next_date, paid: r.paid,
+      frequency: r.frequency as Subscription['frequency'], nextDate: r.next_date, paid: r.paid,
+      billingDay: r.billing_day ?? undefined,
+      subType: (r.sub_type || 'digital') as Subscription['subType'],
+      category: r.category ?? undefined,
+      categoryIcon: r.category_icon ?? undefined,
     });
     const mapInv = (r: any): Investment => ({
       id: r.id, name: r.name, type: r.type, current_value: Number(r.current_value),
@@ -192,6 +207,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const subInserts = defaultSubscriptions.map(s => ({
       user_id: uid, name: s.name, amount: s.amount, frequency: s.frequency,
       next_date: s.nextDate, paid: s.paid,
+      billing_day: s.billingDay ?? null, sub_type: s.subType ?? 'digital',
+      category: s.category ?? null, category_icon: s.categoryIcon ?? '🔄',
     }));
     await supabase.from("subscriptions").insert(subInserts);
 
@@ -299,14 +316,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const addSubscription = useCallback(async (s: Omit<Subscription, "id">) => {
     if (!user) return;
+    const nextDate = s.billingDay ? calcNextDate(s.billingDay) : s.nextDate;
     const { data } = await supabase.from("subscriptions").insert({
       user_id: user.id, name: s.name, amount: s.amount, frequency: s.frequency,
-      next_date: s.nextDate, paid: s.paid,
+      next_date: nextDate, paid: s.paid,
+      billing_day: s.billingDay ?? null, sub_type: s.subType ?? 'digital',
+      category: s.category ?? null, category_icon: s.categoryIcon ?? '🔄',
     }).select().single();
     if (data) {
       setSubscriptions(prev => [...prev, {
         id: data.id, name: data.name, amount: Number(data.amount),
         frequency: data.frequency as Subscription['frequency'], nextDate: data.next_date, paid: data.paid,
+        billingDay: data.billing_day ?? undefined, subType: (data.sub_type || 'digital') as Subscription['subType'],
+        category: data.category ?? undefined, categoryIcon: data.category_icon ?? undefined,
       }]);
     }
   }, [user]);
@@ -316,8 +338,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (s.name !== undefined) updates.name = s.name;
     if (s.amount !== undefined) updates.amount = s.amount;
     if (s.frequency !== undefined) updates.frequency = s.frequency;
-    if (s.nextDate !== undefined) updates.next_date = s.nextDate;
     if (s.paid !== undefined) updates.paid = s.paid;
+    if (s.billingDay !== undefined) {
+      updates.billing_day = s.billingDay;
+      updates.next_date = calcNextDate(s.billingDay);
+    }
+    if (s.nextDate !== undefined && !s.billingDay) updates.next_date = s.nextDate;
+    if (s.subType !== undefined) updates.sub_type = s.subType;
+    if (s.category !== undefined) updates.category = s.category;
+    if (s.categoryIcon !== undefined) updates.category_icon = s.categoryIcon;
     await supabase.from("subscriptions").update(updates).eq("id", id);
     setSubscriptions(prev => prev.map(sub => sub.id === id ? { ...sub, ...s } : sub));
   }, []);

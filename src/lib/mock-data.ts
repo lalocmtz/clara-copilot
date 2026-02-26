@@ -39,6 +39,10 @@ export interface Subscription {
   frequency: 'monthly' | 'yearly';
   nextDate: string;
   paid: boolean;
+  billingDay?: number;
+  subType: 'digital' | 'fixed';
+  category?: string;
+  categoryIcon?: string;
 }
 
 export interface CategorySummary {
@@ -106,12 +110,14 @@ export const budgets: Budget[] = [
 ];
 
 export const subscriptions: Subscription[] = [
-  { id: '1', name: 'Spotify', amount: 199, frequency: 'monthly', nextDate: '2026-03-15', paid: false },
-  { id: '2', name: 'Adobe CC', amount: 700, frequency: 'monthly', nextDate: '2026-03-10', paid: false },
-  { id: '3', name: 'ChatGPT Plus', amount: 449, frequency: 'monthly', nextDate: '2026-03-01', paid: false },
-  { id: '4', name: 'Netflix', amount: 299, frequency: 'monthly', nextDate: '2026-03-08', paid: false },
-  { id: '5', name: 'iCloud', amount: 49, frequency: 'monthly', nextDate: '2026-03-12', paid: false },
-  { id: '6', name: 'Notion', amount: 160, frequency: 'monthly', nextDate: '2026-03-20', paid: false },
+  { id: '1', name: 'Spotify', amount: 199, frequency: 'monthly', nextDate: '2026-03-15', paid: false, billingDay: 15, subType: 'digital', category: 'Suscripciones', categoryIcon: '🔄' },
+  { id: '2', name: 'Adobe CC', amount: 700, frequency: 'monthly', nextDate: '2026-03-10', paid: false, billingDay: 10, subType: 'digital', category: 'Suscripciones', categoryIcon: '🔄' },
+  { id: '3', name: 'ChatGPT Plus', amount: 449, frequency: 'monthly', nextDate: '2026-03-01', paid: false, billingDay: 1, subType: 'digital', category: 'Suscripciones', categoryIcon: '🔄' },
+  { id: '4', name: 'Netflix', amount: 299, frequency: 'monthly', nextDate: '2026-03-08', paid: false, billingDay: 8, subType: 'digital', category: 'Ocio', categoryIcon: '🎮' },
+  { id: '5', name: 'iCloud', amount: 49, frequency: 'monthly', nextDate: '2026-03-12', paid: false, billingDay: 12, subType: 'digital', category: 'Suscripciones', categoryIcon: '🔄' },
+  { id: '6', name: 'Renta', amount: 8500, frequency: 'monthly', nextDate: '2026-03-01', paid: false, billingDay: 1, subType: 'fixed', category: 'Servicios', categoryIcon: '💡' },
+  { id: '7', name: 'Internet', amount: 699, frequency: 'monthly', nextDate: '2026-03-05', paid: false, billingDay: 5, subType: 'fixed', category: 'Servicios', categoryIcon: '💡' },
+  { id: '8', name: 'Celular', amount: 399, frequency: 'monthly', nextDate: '2026-03-18', paid: false, billingDay: 18, subType: 'fixed', category: 'Servicios', categoryIcon: '💡' },
 ];
 
 export const topCategories: CategorySummary[] = [
