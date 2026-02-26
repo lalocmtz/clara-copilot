@@ -10,6 +10,7 @@ export interface Transaction {
   toAccount?: string;
   notes?: string;
   merchant?: string;
+  status?: 'confirmed' | 'pending';
 }
 
 export interface Account {
@@ -22,6 +23,7 @@ export interface Account {
   cutoffDate?: number;
   paymentDate?: number;
   debtTo?: string;
+  balanceUpdatedAt?: string;
 }
 
 export interface Budget {

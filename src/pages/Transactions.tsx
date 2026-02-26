@@ -27,10 +27,12 @@ function formatMonthLabel(key: string) {
 }
 
 type FilterType = 'all' | 'expense' | 'income' | 'transfer';
+type StatusFilter = 'all' | 'confirmed' | 'pending';
 
 export default function Transactions() {
   const { transactions, accounts } = useAppData();
   const [filter, setFilter] = useState<FilterType>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [accountFilter, setAccountFilter] = useState<string>('all');
   const [editTx, setEditTx] = useState<Transaction | null>(null);
   const [importOpen, setImportOpen] = useState(false);
@@ -48,9 +50,12 @@ export default function Transactions() {
     [transactions, selectedMonth]
   );
 
+  const pendingCount = monthTxs.filter(t => t.status === 'pending').length;
+
   const filtered = monthTxs.filter(t => {
     if (filter !== 'all' && t.type !== filter) return false;
     if (accountFilter !== 'all' && t.account !== accountFilter) return false;
+    if (statusFilter !== 'all' && (t.status || 'confirmed') !== statusFilter) return false;
     return true;
   });
   
@@ -113,6 +118,20 @@ export default function Transactions() {
               </button>
             ))}
           </div>
+          {/* Status filter */}
+          <div className="flex gap-2 flex-wrap">
+            {([
+              { key: 'all' as StatusFilter, label: 'Todos' },
+              { key: 'confirmed' as StatusFilter, label: 'Confirmados' },
+              { key: 'pending' as StatusFilter, label: `Pendientes${pendingCount > 0 ? ` (${pendingCount})` : ''}` },
+            ]).map(({ key, label }) => (
+              <button key={key} onClick={() => setStatusFilter(key)}
+                className={cn("px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200",
+                  statusFilter === key ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:bg-accent")}>
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="card-calm p-4">
@@ -121,35 +140,44 @@ export default function Transactions() {
         </div>
 
         <div className="card-calm divide-y divide-border">
-          {filtered.map((tx) => (
-            <button key={tx.id} onClick={() => setEditTx(tx)} className="flex items-center justify-between p-4 w-full text-left hover:bg-accent/30 transition-colors">
-              <div className="flex items-center gap-3">
-                <span className="text-lg">{tx.type === 'transfer' ? '↔' : tx.categoryIcon}</span>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm text-foreground font-medium">
-                      {tx.type === 'transfer'
-                        ? `De ${tx.account} a ${tx.toAccount || '?'}`
-                        : (tx.merchant || tx.notes || tx.category)}
+          {filtered.map((tx) => {
+            const isPending = tx.status === 'pending';
+            return (
+              <button key={tx.id} onClick={() => setEditTx(tx)} className={cn(
+                "flex items-center justify-between p-4 w-full text-left hover:bg-accent/30 transition-colors",
+                isPending && "bg-warning/5"
+              )}>
+                <div className="flex items-center gap-3">
+                  <span className="text-lg">{tx.type === 'transfer' ? '↔' : tx.categoryIcon}</span>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm text-foreground font-medium">
+                        {tx.type === 'transfer'
+                          ? `De ${tx.account} a ${tx.toAccount || '?'}`
+                          : (tx.merchant || tx.notes || tx.category)}
+                      </p>
+                      {tx.type === 'transfer' && (
+                        <Badge variant="outline" className="text-xs bg-warning/10 text-warning border-warning/30">Transferencia</Badge>
+                      )}
+                      {isPending && (
+                        <Badge variant="outline" className="text-xs bg-warning/10 text-warning border-warning/30">Pendiente</Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {tx.type === 'transfer' ? 'Movimiento entre cuentas' : `${tx.category} · ${tx.account}`}
                     </p>
-                    {tx.type === 'transfer' && (
-                      <Badge variant="outline" className="text-xs bg-warning/10 text-warning border-warning/30">Transferencia</Badge>
-                    )}
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {tx.type === 'transfer' ? 'Movimiento entre cuentas' : `${tx.category} · ${tx.account}`}
-                  </p>
                 </div>
-              </div>
-              <div className="text-right">
-                <p className={cn("text-sm font-semibold",
-                  tx.type === 'income' ? "text-success" : tx.type === 'transfer' ? "text-warning" : "text-foreground")}>
-                  {tx.type === 'expense' ? '–' : tx.type === 'transfer' ? '↔' : '+'} {formatMoney(tx.amount)}
-                </p>
-                <p className="text-xs text-muted-foreground">{tx.date}</p>
-              </div>
-            </button>
-          ))}
+                <div className="text-right">
+                  <p className={cn("text-sm font-semibold",
+                    tx.type === 'income' ? "text-success" : tx.type === 'transfer' ? "text-warning" : "text-foreground")}>
+                    {tx.type === 'expense' ? '–' : tx.type === 'transfer' ? '↔' : '+'} {formatMoney(tx.amount)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{tx.date}</p>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
       <QuickAddTransaction />

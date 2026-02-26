@@ -28,7 +28,7 @@ interface AppContextType {
   categories: Category[];
   loading: boolean;
 
-  addTransaction: (t: Omit<Transaction, "id">) => void;
+  addTransaction: (t: Omit<Transaction, "id">, options?: { skipBalanceUpdate?: boolean }) => void;
   updateTransaction: (id: string, t: Partial<Transaction>) => void;
   deleteTransaction: (id: string) => void;
 
@@ -118,11 +118,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       date: r.date, category: r.category, categoryIcon: r.category_icon,
       account: r.account, notes: r.notes, merchant: r.merchant,
       toAccount: r.to_account ?? undefined,
+      status: r.status ?? 'confirmed',
     });
     const mapAcc = (r: any): Account => ({
       id: r.id, name: r.name, type: r.type, balance: Number(r.balance), currency: r.currency,
       creditLimit: r.credit_limit ? Number(r.credit_limit) : undefined,
       cutoffDate: r.cutoff_date ?? undefined, paymentDate: r.payment_date ?? undefined,
+      balanceUpdatedAt: r.balance_updated_at ?? undefined,
     });
     const mapBudget = (r: any): Budget => ({
       id: r.id, category: r.category, categoryIcon: r.category_icon,
@@ -231,12 +233,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAccounts(prev => prev.map(a => a.id === acc.id ? { ...a, balance: newBalance } : a));
   }, [accounts]);
 
-  const addTransaction = useCallback(async (t: Omit<Transaction, "id">) => {
+  const addTransaction = useCallback(async (t: Omit<Transaction, "id">, options?: { skipBalanceUpdate?: boolean }) => {
     if (!user) return;
     const insertData: any = {
       user_id: user.id, type: t.type, amount: t.amount, currency: t.currency, date: t.date,
       category: t.category, category_icon: t.categoryIcon, account: t.account,
       notes: t.notes ?? null, merchant: t.merchant ?? null,
+      status: t.status ?? 'confirmed',
     };
     if (t.type === 'transfer' && t.toAccount) insertData.to_account = t.toAccount;
     const { data, error } = await supabase.from("transactions").insert(insertData).select().single();
@@ -246,14 +249,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         date: data.date, category: data.category, categoryIcon: data.category_icon,
         account: data.account, notes: data.notes ?? undefined, merchant: data.merchant ?? undefined,
         toAccount: (data as any).to_account ?? undefined,
+        status: (data as any).status ?? 'confirmed',
       }, ...prev]);
-      if (t.type === 'transfer' && t.toAccount) {
-        // Transfer: subtract from origin, add to destination
-        await updateAccountBalance(t.account, -t.amount);
-        await updateAccountBalance(t.toAccount, t.amount);
-      } else {
-        const delta = t.type === 'income' ? t.amount : -t.amount;
-        await updateAccountBalance(t.account, delta);
+      if (!options?.skipBalanceUpdate) {
+        if (t.type === 'transfer' && t.toAccount) {
+          await updateAccountBalance(t.account, -t.amount);
+          await updateAccountBalance(t.toAccount, t.amount);
+        } else {
+          const delta = t.type === 'income' ? t.amount : -t.amount;
+          await updateAccountBalance(t.account, delta);
+        }
       }
     }
   }, [user, updateAccountBalance]);
@@ -294,6 +299,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (t.notes !== undefined) updates.notes = t.notes;
     if (t.merchant !== undefined) updates.merchant = t.merchant;
     if (t.toAccount !== undefined) updates.to_account = t.toAccount;
+    if (t.status !== undefined) updates.status = t.status;
     await supabase.from("transactions").update(updates).eq("id", id);
     setTransactions(prev => prev.map(tx => tx.id === id ? { ...tx, ...t } : tx));
   }, [transactions, updateAccountBalance]);
@@ -332,12 +338,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const updates: any = {};
     if (a.name !== undefined) updates.name = a.name;
     if (a.type !== undefined) updates.type = a.type;
-    if (a.balance !== undefined) updates.balance = a.balance;
+    if (a.balance !== undefined) {
+      updates.balance = a.balance;
+      updates.balance_updated_at = new Date().toISOString();
+    }
     if (a.creditLimit !== undefined) updates.credit_limit = a.creditLimit;
     if (a.cutoffDate !== undefined) updates.cutoff_date = a.cutoffDate;
     if (a.paymentDate !== undefined) updates.payment_date = a.paymentDate;
     await supabase.from("accounts").update(updates).eq("id", id);
-    setAccounts(prev => prev.map(acc => acc.id === id ? { ...acc, ...a } : acc));
+    const balanceUpdatedAt = updates.balance_updated_at || undefined;
+    setAccounts(prev => prev.map(acc => acc.id === id ? { ...acc, ...a, ...(balanceUpdatedAt ? { balanceUpdatedAt } : {}) } : acc));
   }, []);
 
   const deleteAccount = useCallback(async (id: string) => {
