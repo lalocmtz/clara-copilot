@@ -3,7 +3,7 @@ import Layout from "@/components/Layout";
 import QuickAddTransaction from "@/components/QuickAddTransaction";
 import { useAppData } from "@/context/AppContext";
 import { cn } from "@/lib/utils";
-import { Check, X, Settings, Plus } from "lucide-react";
+import { Check, X, Settings, Plus, Trash2 } from "lucide-react";
 import CategoryManager from "@/components/CategoryManager";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 
@@ -43,6 +43,7 @@ export default function Budgets() {
   const [tempBudgetAmount, setTempBudgetAmount] = useState('');
   const [addingCategoryId, setAddingCategoryId] = useState<string | null>(null);
   const [newBudgetAmount, setNewBudgetAmount] = useState('');
+  const [confirmDeleteBudgetId, setConfirmDeleteBudgetId] = useState<string | null>(null);
 
   const startEditBudget = (id: string, current: number) => {
     setEditingBudgetId(id);
@@ -158,8 +159,8 @@ export default function Budgets() {
 
         {/* Per-category budgets */}
         <div className="card-calm overflow-hidden">
-          <div className="hidden sm:grid grid-cols-5 gap-4 p-4 text-label border-b border-border">
-            <span>Categoría</span><span className="text-right">Presupuesto</span><span className="text-right">Gastado</span><span className="text-right">Restante</span><span>Progreso</span>
+          <div className="hidden sm:grid grid-cols-6 gap-4 p-4 text-label border-b border-border">
+            <span>Categoría</span><span className="text-right">Presupuesto</span><span className="text-right">Gastado</span><span className="text-right">Restante</span><span>Progreso</span><span></span>
           </div>
           {currentBudgets.length === 0 && categoriesWithoutBudget.length === 0 && (
             <div className="p-8 text-center text-muted-foreground text-sm">
@@ -171,8 +172,21 @@ export default function Budgets() {
             const pct = b.budgeted > 0 ? Math.min((b.spent / b.budgeted) * 100, 100) : 0;
             const isOver = b.spent > b.budgeted;
             const isEditing = editingBudgetId === b.id;
+            const isConfirmingDelete = confirmDeleteBudgetId === b.id;
+
+            if (isConfirmingDelete) {
+              return (
+                <div key={b.id} className="flex items-center gap-3 p-4 border-b border-border last:border-0">
+                  <span>{b.categoryIcon}</span>
+                  <span className="text-sm text-foreground">¿Eliminar presupuesto de <strong>{b.category}</strong>?</span>
+                  <button onClick={() => handleDeleteBudget(b.id)} className="text-xs text-destructive font-medium px-2">Sí, eliminar</button>
+                  <button onClick={() => setConfirmDeleteBudgetId(null)} className="text-xs text-muted-foreground px-2">Cancelar</button>
+                </div>
+              );
+            }
+
             return (
-              <div key={b.id} className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-4 p-4 border-b border-border last:border-0 items-center">
+              <div key={b.id} className="grid grid-cols-2 sm:grid-cols-6 gap-2 sm:gap-4 p-4 border-b border-border last:border-0 items-center">
                 <div className="flex items-center gap-2">
                   <span>{b.categoryIcon}</span>
                   <span className="text-sm font-medium text-foreground">{b.category}</span>
@@ -195,10 +209,15 @@ export default function Budgets() {
                 </div>
                 <span className="text-sm text-right text-foreground font-medium">{formatMoney(b.spent)}</span>
                 <span className={cn("text-sm text-right font-medium", isOver ? "text-danger" : "text-success")}>{formatMoney(remaining)}</span>
-                <div className="col-span-2 sm:col-span-1">
+                <div className="col-span-1">
                   <div className="h-2 bg-secondary rounded-full overflow-hidden">
                     <div className={cn("h-full rounded-full transition-all duration-500", isOver ? "bg-danger" : pct > 70 ? "bg-warning" : "bg-primary")} style={{ width: `${pct}%` }} />
                   </div>
+                </div>
+                <div className="flex justify-end">
+                  <button onClick={() => setConfirmDeleteBudgetId(b.id)} className="p-1.5 rounded-lg hover:bg-accent transition-colors" title="Eliminar presupuesto">
+                    <Trash2 className="w-4 h-4 text-muted-foreground hover:text-destructive" />
+                  </button>
                 </div>
               </div>
             );
