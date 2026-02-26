@@ -3,10 +3,11 @@ import Layout from "@/components/Layout";
 import QuickAddTransaction from "@/components/QuickAddTransaction";
 import TransactionEditor from "@/components/TransactionEditor";
 import StatementImporter from "@/components/StatementImporter";
+import StatementHistory from "@/components/StatementHistory";
 import { useAppData } from "@/context/AppContext";
 import { cn } from "@/lib/utils";
 import type { Transaction } from "@/lib/mock-data";
-import { Upload, ChevronLeft, ChevronRight } from "lucide-react";
+import { Upload, ChevronLeft, ChevronRight, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
@@ -32,6 +33,7 @@ export default function Transactions() {
   const [filter, setFilter] = useState<FilterType>('all');
   const [editTx, setEditTx] = useState<Transaction | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(() => getMonthKey(new Date('2026-02-26')));
 
   const goMonth = (delta: number) => {
@@ -69,10 +71,16 @@ export default function Transactions() {
               <ChevronRight className="w-5 h-5 text-muted-foreground" />
             </button>
           </div>
-          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
-            <Upload className="w-4 h-4 mr-1" />
-            Importar
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setHistoryOpen(true)}>
+              <History className="w-4 h-4 mr-1" />
+              Historial
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+              <Upload className="w-4 h-4 mr-1" />
+              Importar
+            </Button>
+          </div>
         </div>
 
         <div className="flex gap-2 flex-wrap">
@@ -125,6 +133,7 @@ export default function Transactions() {
       <QuickAddTransaction />
       <TransactionEditor transaction={editTx} open={!!editTx} onOpenChange={(o) => !o && setEditTx(null)} />
       <StatementImporter open={importOpen} onOpenChange={setImportOpen} />
+      <StatementHistory open={historyOpen} onOpenChange={setHistoryOpen} />
     </Layout>
   );
 }
