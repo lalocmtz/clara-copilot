@@ -2,9 +2,12 @@ import { useState } from "react";
 import Layout from "@/components/Layout";
 import QuickAddTransaction from "@/components/QuickAddTransaction";
 import TransactionEditor from "@/components/TransactionEditor";
+import StatementImporter from "@/components/StatementImporter";
 import { useAppData } from "@/context/AppContext";
 import { cn } from "@/lib/utils";
 import type { Transaction } from "@/lib/mock-data";
+import { Upload } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 0 }).format(n);
@@ -16,6 +19,7 @@ export default function Transactions() {
   const { transactions } = useAppData();
   const [filter, setFilter] = useState<FilterType>('all');
   const [editTx, setEditTx] = useState<Transaction | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   const filtered = filter === 'all' ? transactions : transactions.filter(t => t.type === filter);
   const total = filtered.reduce((s, t) => s + (t.type === 'income' ? t.amount : -t.amount), 0);
@@ -23,9 +27,15 @@ export default function Transactions() {
   return (
     <Layout>
       <div className="space-y-6">
-        <div>
-          <h2 className="text-2xl font-bold text-foreground">Transacciones</h2>
-          <p className="text-muted-foreground text-sm mt-1">Febrero 2026</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-foreground">Transacciones</h2>
+            <p className="text-muted-foreground text-sm mt-1">Febrero 2026</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+            <Upload className="w-4 h-4 mr-1" />
+            Importar
+          </Button>
         </div>
 
         <div className="flex gap-2">
@@ -65,6 +75,7 @@ export default function Transactions() {
       </div>
       <QuickAddTransaction />
       <TransactionEditor transaction={editTx} open={!!editTx} onOpenChange={(o) => !o && setEditTx(null)} />
+      <StatementImporter open={importOpen} onOpenChange={setImportOpen} />
     </Layout>
   );
 }
