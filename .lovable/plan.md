@@ -1,67 +1,46 @@
 
 
-# Correcciones y Mejoras para Clara
+# Correccion: Presupuestos con gastos fantasma
 
-## Problema 1: Los datos se re-siembran al borrar todo
+## El problema
 
-Actualmente, si borras todas tus transacciones, cuentas y categorias, el sistema detecta que no hay datos y vuelve a cargar los datos demo automaticamente. Esto hace que parezca que "no se borra nada".
+Los presupuestos tienen un campo `spent` (gastado) guardado directamente en la base de datos como un numero estatico. Cuando se sembraron los datos demo, se insertaron valores como `spent: 2870` para Comida, `spent: 1180` para Transporte, etc. Esos numeros no se recalculan nunca a partir de las transacciones reales. Por eso, aunque borres todas las transacciones, los presupuestos siguen mostrando gastos.
 
-**Solucion:** Agregar una bandera `demo_seeded` en la tabla `profiles` para rastrear si el usuario ya fue inicializado. Solo se siembra una vez (primer login). Borrar datos despues no re-siembra.
+## La solucion
 
----
+Calcular el campo `spent` dinamicamente a partir de las transacciones reales del mes correspondiente, en lugar de confiar en el valor estatico de la base de datos. Asi, si no hay transacciones, los gastos aparecen en $0.
 
-## Problema 2: No se pueden editar inversiones
+## Cambios tecnicos
 
-No existe un componente `InvestmentEditor`. Solo existe `updateInvestment` en el contexto, pero sin UI.
+### 1. `src/context/AppContext.tsx`
 
-**Solucion:** Crear `src/components/InvestmentEditor.tsx` — un modal similar a `AccountEditor` con:
-- Nombre de la inversion
-- Tipo (crypto, acciones, fondo, negocio)
-- Valor actual
-- Costo base (lo que invertiste)
-- Fecha de la inversion
-- Botones de guardar y eliminar
+Despues de cargar budgets y transacciones, recalcular el `spent` de cada presupuesto sumando las transacciones de tipo `expense` que coincidan en categoria y periodo (mes). Esto reemplaza el valor estatico del campo `spent` en la base de datos con un valor computado.
 
-Agregar `addInvestment` y `deleteInvestment` al AppContext.
+```text
+Para cada budget:
+  1. Extraer el periodo (ej: "2026-02")
+  2. Filtrar transacciones tipo "expense" cuya fecha inicie con ese periodo
+  3. Filtrar por categoria que coincida con la del budget
+  4. Sumar los montos = spent real
+```
 
-Modificar `src/pages/Accounts.tsx` para que al hacer click en una inversion se abra el editor, y agregar un boton "Agregar inversion".
+### 2. `src/pages/Budgets.tsx`
 
----
+No se necesitan cambios en la UI. Una vez que el contexto entregue los valores correctos de `spent`, la pagina de presupuestos mostrara automaticamente:
+- Presupuesto mensual total correcto
+- Gastado: $0 (cuando no hay transacciones)
+- Te queda: el monto completo del presupuesto
+- Grafica de pastel vacia (sin datos de gasto)
+- Barras de progreso en 0%
 
-## Problema 3: Grafica de pastel en Presupuestos
+### 3. Seed data (`seedDemoData`)
 
-Reemplazar la tabla de presupuestos con una grafica de pastel (pie chart) que muestre el desglose de gastos por categoria.
+Cambiar los inserts de budgets demo para que `spent` se inserte como 0, ya que el valor real se calculara de las transacciones. Esto evita inconsistencias futuras.
 
-**Solucion:** Usar `recharts` (ya instalado) para crear un PieChart en `src/pages/Budgets.tsx`. La grafica mostrara las categorias con sus porcentajes de gasto. Se mantiene la tabla debajo para edicion de montos.
+### Flujo resultante
 
----
-
-## Cambios Tecnicos
-
-### Migracion de base de datos
-- Agregar columna `demo_seeded` (boolean, default false) a la tabla `profiles`
-
-### `src/context/AppContext.tsx`
-- Cambiar logica de seeding: consultar `profiles.demo_seeded` antes de sembrar datos demo
-- Despues de sembrar, marcar `demo_seeded = true`
-- Agregar funciones `addInvestment` y `deleteInvestment`
-- Actualizar `updateInvestment` para soportar `last_updated`
-
-### Nuevo: `src/components/InvestmentEditor.tsx`
-- Modal con campos: nombre, tipo, valor actual, costo base, fecha
-- Boton eliminar con confirmacion
-- Mismo patron visual que AccountEditor
-
-### `src/pages/Accounts.tsx`
-- Importar InvestmentEditor
-- Hacer inversiones clickeables para editar
-- Agregar boton "Agregar" en seccion inversiones
-
-### `src/pages/Budgets.tsx`
-- Agregar PieChart de recharts con desglose de gastos por categoria
-- Mantener tabla de presupuestos debajo para edicion inline
-- Colores coordinados por categoria
-
-### `src/lib/mock-data.ts`
-- Actualizar interfaz Investment para que sea consistente
+1. Usuario sin transacciones: todos los presupuestos muestran $0 gastado
+2. Usuario agrega transaccion de gasto en categoria "Comida": el presupuesto de Comida se actualiza automaticamente
+3. Usuario borra transaccion: el gasto baja correspondientemente
+4. No se necesita editar manualmente el campo "gastado" -- se calcula solo
 
