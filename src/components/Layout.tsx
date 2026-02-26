@@ -1,10 +1,8 @@
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { Home, ArrowUpDown, PieChart, Wallet, RotateCw, Lightbulb, Menu, X, RefreshCw, LogOut } from "lucide-react";
+import { Home, ArrowUpDown, PieChart, Wallet, RotateCw, Lightbulb, Menu, X, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useAppData } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
-import { useToast } from "@/hooks/use-toast";
 
 const navItems = [
   { to: "/", label: "Tu panorama", icon: Home },
@@ -16,16 +14,8 @@ const navItems = [
 ];
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const { resetAll } = useAppData();
   const { signOut } = useAuth();
-  const { toast } = useToast();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const location = useLocation();
-
-  const handleReset = () => {
-    resetAll();
-    toast({ title: "Datos restablecidos", description: "Todo volvió a los datos demo iniciales." });
-  };
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -57,14 +47,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <div className="pt-4 border-t border-sidebar-border space-y-2">
           <div className="flex items-center justify-between">
             <p className="text-xs text-muted-foreground">Todo claro ✨</p>
-            <div className="flex gap-1">
-              <button onClick={handleReset} className="p-1.5 rounded-lg hover:bg-accent transition-colors" title="Restablecer datos demo">
-                <RefreshCw className="w-3.5 h-3.5 text-muted-foreground" />
-              </button>
-              <button onClick={signOut} className="p-1.5 rounded-lg hover:bg-accent transition-colors" title="Cerrar sesión">
-                <LogOut className="w-3.5 h-3.5 text-muted-foreground" />
-              </button>
-            </div>
+            <button onClick={signOut} className="p-1.5 rounded-lg hover:bg-accent transition-colors" title="Cerrar sesión">
+              <LogOut className="w-3.5 h-3.5 text-muted-foreground" />
+            </button>
           </div>
         </div>
       </aside>
