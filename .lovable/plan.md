@@ -1,60 +1,74 @@
 
-# Importar estados de cuenta con IA
+# Tres mejoras: importador inteligente, deteccion de suscripciones, y navegacion por mes
 
-## Resumen
-Crear una funcionalidad donde puedas subir archivos (PDF, imágenes, capturas de pantalla) de estados de cuenta bancarios, y el sistema use IA para extraer automáticamente todos los movimientos, categorizarlos, y registrarlos como transacciones vinculadas a una cuenta.
+## 1. Importador inteligente de estados de cuenta (evitar duplicados)
 
-## Flujo del usuario
-1. En la página de Transacciones, aparece un botón "Importar estado de cuenta"
-2. Se abre un diálogo donde seleccionas la cuenta destino y subes el archivo (PDF o imagen)
-3. El sistema envía el archivo a una función backend que usa IA con visión para leer el documento
-4. La IA extrae cada movimiento: fecha, monto, tipo (gasto/ingreso), descripción, y sugiere una categoría
-5. Se muestra una vista previa con todos los movimientos detectados para que puedas revisar, editar o descartar antes de confirmar
-6. Al confirmar, todos los movimientos se registran como transacciones y los saldos de la cuenta se actualizan
+### Problema
+Al importar un estado de cuenta de tarjeta de credito, los pagos recibidos (abonos a la tarjeta) aparecen como "ingresos", duplicando el dinero que ya se registro como salario en otra cuenta.
 
-## Cambios técnicos
+### Solucion
+Modificar el prompt de la IA en la edge function `parse-statement` para que clasifique cada movimiento en tres tipos en lugar de dos:
+- `expense` -- gasto real (compras, servicios, etc.)
+- `income` -- ingreso real (nomina, freelance, etc.)
+- `transfer` -- movimiento interno (pago a tarjeta, transferencia entre cuentas propias)
 
-### 1. Storage bucket para archivos
-Crear un bucket `statements` en Lovable Cloud para almacenar temporalmente los archivos subidos (PDFs e imágenes).
+En la UI del `StatementImporter`, los movimientos tipo `transfer` vendran **deseleccionados por defecto** y se mostraran con una etiqueta visual distinta (badge "Transferencia") para que el usuario pueda revisarlos. Los gastos vienen seleccionados. Los ingresos tambien vienen seleccionados pero con aviso visual.
 
-### 2. Edge function `parse-statement`
-Nueva función backend que:
-- Recibe el archivo (ruta en storage) y el nombre de la cuenta
-- Obtiene las categorías existentes del usuario para que la IA las use
-- Convierte el archivo a base64 y lo envía a Lovable AI (google/gemini-2.5-flash con capacidad de visión) 
-- Le pide a la IA que extraiga todos los movimientos en formato JSON estructurado (usando tool calling):
-  - fecha, monto, tipo (gasto/ingreso), descripción/comercio, categoría sugerida, icono de categoría
-- Si la IA identifica categorías que no existen, las sugiere como nuevas
-- Devuelve el arreglo de movimientos parseados
+Ademas, la IA tambien marcara si detecta que un movimiento parece ser una suscripcion recurrente (campo `isSubscription` + `subscriptionName`).
 
-### 3. Componente `StatementImporter.tsx`
-Nuevo componente con:
-- Selector de cuenta destino (dropdown con las cuentas del usuario)
-- Zona de arrastre/carga de archivos (acepta PDF, PNG, JPG, JPEG, WEBP)
-- Indicador de progreso mientras la IA procesa
-- Tabla de vista previa con los movimientos detectados:
-  - Checkbox para incluir/excluir cada movimiento
-  - Campos editables: categoría, tipo, monto
-  - Resumen: total de ingresos y gastos detectados
-- Botón "Confirmar importación" que llama a `addTransaction` por cada movimiento seleccionado
+### Archivos a modificar
+- `supabase/functions/parse-statement/index.ts` -- actualizar prompt y schema del tool calling para incluir `transfer` y `isSubscription`
+- `src/components/StatementImporter.tsx` -- manejar tipo `transfer`, deseleccionarlos por defecto, mostrar badges, y boton de "Agregar a suscripciones"
 
-### 4. Integración en la página de Transacciones
-- Agregar botón "Importar estado de cuenta" junto al formulario de agregar transacción
-- El botón abre un Dialog con el componente `StatementImporter`
+## 2. Deteccion de suscripciones desde el importador
 
-### 5. Actualización del contexto (`AppContext.tsx`)
-- Agregar función `addTransactions` (plural) para insertar múltiples transacciones en batch y actualizar saldos de cuenta de forma eficiente (una sola actualización de saldo por el total neto, en lugar de una por cada transacción)
+### Solucion
+Cuando la IA detecte un movimiento que parece suscripcion (Netflix, Spotify, gimnasio, seguro, etc.), lo marcara con `isSubscription: true` y `subscriptionName`.
 
-### 6. Categorías nuevas
-- Si la IA sugiere categorías que no existen en el sistema del usuario, se crean automáticamente al confirmar la importación
+En la vista previa del importador, estos movimientos tendran un boton/icono "Agregar a suscripciones" que abre un mini-formulario pre-llenado con nombre, monto y categoria para registrarlo como suscripcion recurrente usando `addSubscription`.
 
-## Formatos soportados
-- **PDF**: Estados de cuenta bancarios en formato digital
-- **Imágenes (PNG, JPG, WEBP)**: Capturas de pantalla de apps bancarias o fotos de estados de cuenta impresos
+### Archivos a modificar
+- `supabase/functions/parse-statement/index.ts` -- ya cubierto arriba
+- `src/components/StatementImporter.tsx` -- agregar boton de suscripcion por fila y logica para llamar `addSubscription`
 
-## Archivos a crear/modificar
-- `supabase/functions/parse-statement/index.ts` (nuevo) -- edge function con IA
-- `src/components/StatementImporter.tsx` (nuevo) -- UI de importación
-- `src/pages/Transactions.tsx` (modificar) -- agregar botón de importar
-- `src/context/AppContext.tsx` (modificar) -- agregar `addTransactions` batch
-- Migración SQL para crear el bucket de storage
+## 3. Navegacion por mes en la pagina principal
+
+### Problema
+La pagina principal solo muestra datos del mes actual sin posibilidad de ver meses anteriores.
+
+### Solucion
+Agregar un selector de mes con flechas izquierda/derecha en el encabezado de la pagina principal ("< Febrero 2026 >"). Al cambiar de mes:
+- Filtrar transacciones por el mes seleccionado
+- Recalcular totales de ingresos/gastos del mes
+- Recalcular presupuesto del mes
+- Recalcular top categorias del mes
+- Los datos de capital total y pagos proximos se mantienen sin filtro (son datos actuales)
+
+Actualmente `monthlyTotals` y `topCategories` se calculan en `AppContext` sin filtro de mes. La solucion es calcularlos localmente en `Index.tsx` basandose en el mes seleccionado, usando las transacciones ya cargadas.
+
+### Archivos a modificar
+- `src/pages/Index.tsx` -- agregar estado `selectedMonth`, flechas de navegacion, y filtrado local de transacciones por mes
+- `src/context/AppContext.tsx` -- modificar la query de transacciones para traer todos los meses (no solo el actual) si no lo hace ya. Actualmente ya trae todas sin filtro de fecha, asi que no se necesita cambio aqui.
+
+---
+
+## Resumen tecnico de cambios
+
+### `supabase/functions/parse-statement/index.ts`
+- Actualizar el system prompt para instruir a la IA a clasificar movimientos en `expense`, `income`, o `transfer`
+- Agregar campos `isSubscription` (boolean) y `subscriptionName` (string) al schema del tool calling
+- La IA debe identificar pagos a tarjeta, transferencias entre cuentas propias, y pagos de servicios recurrentes
+
+### `src/components/StatementImporter.tsx`
+- Actualizar `ParsedTransaction` para incluir `type: "expense" | "income" | "transfer"`, `isSubscription`, `subscriptionName`
+- Las transferencias vienen deseleccionadas por defecto
+- Mostrar badges de color por tipo: gasto (normal), ingreso (verde), transferencia (gris/amarillo)
+- Para movimientos con `isSubscription`, mostrar un boton con icono de "+" que llama a `addSubscription` con los datos pre-llenados
+- Mostrar toast de confirmacion al agregar suscripcion
+
+### `src/pages/Index.tsx`
+- Agregar estado `selectedMonth` (formato "YYYY-MM", default mes actual)
+- Agregar flechas `ChevronLeft` / `ChevronRight` junto al titulo del mes
+- Filtrar `transactions` por `selectedMonth` para calcular totales, categorias, y movimientos recientes del mes
+- El titulo cambia dinamicamente ("Enero 2026", "Febrero 2026", etc.)
+- Capital total, pagos proximos y presupuestos se quedan con datos actuales
