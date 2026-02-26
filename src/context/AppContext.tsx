@@ -142,9 +142,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    // Recalculate spent dynamically from transactions
+    const budDataWithSpent = budData.map(b => {
+      const realSpent = txData
+        .filter(t => t.type === 'expense' && t.date.startsWith(b.period) && t.category === b.category)
+        .reduce((sum, t) => sum + t.amount, 0);
+      return { ...b, spent: realSpent };
+    });
+
     setTransactions(txData);
     setAccounts(accData);
-    setBudgets(budData);
+    setBudgets(budDataWithSpent);
     setSubscriptions(subData);
     setInvestments(invData);
     setCategories(catData);
@@ -175,7 +183,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const budInserts = defaultBudgets.map(b => ({
       user_id: uid, category: b.category, category_icon: b.categoryIcon,
-      budgeted: b.budgeted, spent: b.spent, period: b.period,
+      budgeted: b.budgeted, spent: 0, period: b.period,
     }));
     await supabase.from("budgets").insert(budInserts);
 
