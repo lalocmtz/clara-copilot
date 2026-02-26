@@ -3,7 +3,7 @@ import { X, Plus, Pencil, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppData } from "@/context/AppContext";
 
-const emojiOptions = ['🍽', '🚗', '💡', '📢', '🔄', '🎮', '🏥', '💰', '💻', '📦', '🏠', '✈️', '🎓', '🛍', '☕', '🎵', '📱', '🐶'];
+const emojiOptions = ['🍽', '🚗', '💡', '📢', '🔄', '🎮', '🏥', '💰', '💻', '📦', '🏠', '✈️', '🎓', '🛍', '☕', '🎵', '📱', '🐶', '🎬', '🧴', '🏋️', '🎁', '📚', '🍺', '🚌', '💊'];
 
 interface Props {
   open: boolean;
@@ -11,7 +11,7 @@ interface Props {
 }
 
 export default function CategoryManager({ open, onOpenChange }: Props) {
-  const { categories, addCategory, updateCategory, toggleCategory } = useAppData();
+  const { categories, addCategory, updateCategory, deleteCategory } = useAppData();
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
@@ -19,6 +19,8 @@ export default function CategoryManager({ open, onOpenChange }: Props) {
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState('');
   const [newIcon, setNewIcon] = useState('📦');
+  const [customEmoji, setCustomEmoji] = useState('');
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const startEdit = (cat: typeof categories[0]) => {
     setEditingId(cat.id);
@@ -35,6 +37,20 @@ export default function CategoryManager({ open, onOpenChange }: Props) {
     if (!newName.trim()) return;
     addCategory({ name: newName, icon: newIcon });
     setNewName(''); setNewIcon('📦'); setAdding(false);
+  };
+
+  const handleDelete = (id: string) => {
+    deleteCategory(id);
+    setConfirmDeleteId(null);
+  };
+
+  const handleCustomEmojiSelect = (emoji: string, target: 'edit' | 'new') => {
+    if (!emoji.trim()) return;
+    // Take only the first emoji character(s)
+    const firstEmoji = [...emoji][0];
+    if (target === 'edit') setEditIcon(firstEmoji);
+    else setNewIcon(firstEmoji);
+    setCustomEmoji('');
   };
 
   return (
@@ -54,14 +70,20 @@ export default function CategoryManager({ open, onOpenChange }: Props) {
 
             <div className="space-y-2">
               {categories.map((cat) => (
-                <div key={cat.id} className={`flex items-center gap-3 p-3 rounded-lg ${cat.active ? 'bg-secondary' : 'bg-secondary/50 opacity-50'}`}>
+                <div key={cat.id} className="flex items-center gap-3 p-3 rounded-lg bg-secondary">
                   {editingId === cat.id ? (
                     <div className="flex-1 space-y-2">
                       <div className="flex gap-1 flex-wrap">
-                        {emojiOptions.slice(0, 9).map(e => (
+                        {emojiOptions.map(e => (
                           <button key={e} onClick={() => setEditIcon(e)}
                             className={`w-8 h-8 rounded text-sm flex items-center justify-center ${editIcon === e ? 'bg-primary/20 ring-1 ring-primary' : 'hover:bg-accent'}`}>{e}</button>
                         ))}
+                      </div>
+                      <div className="flex gap-2 items-center">
+                        <input value={customEmoji} onChange={(e) => setCustomEmoji(e.target.value)}
+                          placeholder="Pega un emoji"
+                          className="w-20 text-sm bg-card rounded-lg px-2 py-1.5 outline-none text-foreground placeholder:text-muted-foreground/50 text-center" />
+                        <button onClick={() => handleCustomEmojiSelect(customEmoji, 'edit')} className="text-xs text-primary font-medium">Usar</button>
                       </div>
                       <div className="flex gap-2">
                         <input value={editName} onChange={(e) => setEditName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
@@ -70,13 +92,19 @@ export default function CategoryManager({ open, onOpenChange }: Props) {
                         <button onClick={() => setEditingId(null)} className="text-xs text-muted-foreground px-2">Cancelar</button>
                       </div>
                     </div>
+                  ) : confirmDeleteId === cat.id ? (
+                    <div className="flex-1 flex items-center gap-3">
+                      <span className="text-sm text-foreground">¿Eliminar <strong>{cat.name}</strong>?</span>
+                      <button onClick={() => handleDelete(cat.id)} className="text-xs text-destructive font-medium px-2">Sí, eliminar</button>
+                      <button onClick={() => setConfirmDeleteId(null)} className="text-xs text-muted-foreground px-2">Cancelar</button>
+                    </div>
                   ) : (
                     <>
                       <span className="text-lg">{cat.icon}</span>
                       <span className="flex-1 text-sm text-foreground font-medium">{cat.name}</span>
                       <button onClick={() => startEdit(cat)} className="p-1 hover:bg-accent rounded transition-colors"><Pencil className="w-3.5 h-3.5 text-muted-foreground" /></button>
-                      <button onClick={() => toggleCategory(cat.id)} className="p-1 hover:bg-accent rounded transition-colors">
-                        <Trash2 className={`w-3.5 h-3.5 ${cat.active ? 'text-muted-foreground' : 'text-danger'}`} />
+                      <button onClick={() => setConfirmDeleteId(cat.id)} className="p-1 hover:bg-accent rounded transition-colors">
+                        <Trash2 className="w-3.5 h-3.5 text-muted-foreground" />
                       </button>
                     </>
                   )}
@@ -87,10 +115,16 @@ export default function CategoryManager({ open, onOpenChange }: Props) {
             {adding ? (
               <div className="mt-4 p-3 rounded-lg bg-secondary space-y-2">
                 <div className="flex gap-1 flex-wrap">
-                  {emojiOptions.slice(0, 9).map(e => (
+                  {emojiOptions.map(e => (
                     <button key={e} onClick={() => setNewIcon(e)}
                       className={`w-8 h-8 rounded text-sm flex items-center justify-center ${newIcon === e ? 'bg-primary/20 ring-1 ring-primary' : 'hover:bg-accent'}`}>{e}</button>
                   ))}
+                </div>
+                <div className="flex gap-2 items-center">
+                  <input value={customEmoji} onChange={(e) => setCustomEmoji(e.target.value)}
+                    placeholder="Pega un emoji"
+                    className="w-20 text-sm bg-card rounded-lg px-2 py-1.5 outline-none text-foreground placeholder:text-muted-foreground/50 text-center" />
+                  <button onClick={() => handleCustomEmojiSelect(customEmoji, 'new')} className="text-xs text-primary font-medium">Usar</button>
                 </div>
                 <div className="flex gap-2">
                   <input value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleAdd()}

@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Layout from "@/components/Layout";
 import QuickAddTransaction from "@/components/QuickAddTransaction";
 import { useAppData } from "@/context/AppContext";
 import { cn } from "@/lib/utils";
-import { Pencil, Settings, Check, X } from "lucide-react";
+import { Check, X, Settings, Plus } from "lucide-react";
 import CategoryManager from "@/components/CategoryManager";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 
@@ -22,32 +22,65 @@ const PIE_COLORS = [
 ];
 
 export default function Budgets() {
-  const { budgets, updateBudget } = useAppData();
+  const { budgets, categories, updateBudget, addBudget, deleteBudget, refetchData } = useAppData();
 
-  const totalBudget = budgets.reduce((s, b) => s + b.budgeted, 0);
-  const totalSpent = budgets.reduce((s, b) => s + b.spent, 0);
+  const currentPeriod = new Date().toISOString().slice(0, 7); // YYYY-MM
+
+  // Budgets for current period only
+  const currentBudgets = useMemo(() => budgets.filter(b => b.period === currentPeriod), [budgets, currentPeriod]);
+
+  // Categories that have a budget vs those that don't
+  const activeCategories = categories.filter(c => c.active);
+  const categoriesWithBudget = currentBudgets.map(b => b.category);
+  const categoriesWithoutBudget = activeCategories.filter(c => !categoriesWithBudget.includes(c.name));
+
+  const totalBudget = currentBudgets.reduce((s, b) => s + b.budgeted, 0);
+  const totalSpent = currentBudgets.reduce((s, b) => s + b.spent, 0);
   const quedaPorGastar = totalBudget - totalSpent;
 
-  const [editingTotal, setEditingTotal] = useState(false);
-  const [tempTotal, setTempTotal] = useState(totalBudget.toString());
   const [categoryManagerOpen, setCategoryManagerOpen] = useState(false);
   const [editingBudgetId, setEditingBudgetId] = useState<string | null>(null);
   const [tempBudgetAmount, setTempBudgetAmount] = useState('');
+  const [addingCategoryId, setAddingCategoryId] = useState<string | null>(null);
+  const [newBudgetAmount, setNewBudgetAmount] = useState('');
 
   const startEditBudget = (id: string, current: number) => {
     setEditingBudgetId(id);
     setTempBudgetAmount(current.toString());
   };
 
-  const saveBudgetEdit = () => {
+  const saveBudgetEdit = async () => {
     if (editingBudgetId && tempBudgetAmount) {
-      updateBudget(editingBudgetId, { budgeted: parseFloat(tempBudgetAmount) });
+      await updateBudget(editingBudgetId, { budgeted: parseFloat(tempBudgetAmount) });
+      refetchData();
     }
     setEditingBudgetId(null);
   };
 
-  // Pie chart data - only categories with spending
-  const pieData = budgets
+  const handleAddBudget = async (cat: typeof activeCategories[0]) => {
+    const amount = parseFloat(newBudgetAmount);
+    if (!amount || amount <= 0) return;
+    await addBudget({
+      category: cat.name,
+      categoryIcon: cat.icon,
+      budgeted: amount,
+      spent: 0,
+      period: currentPeriod,
+    });
+    refetchData();
+    setAddingCategoryId(null);
+    setNewBudgetAmount('');
+  };
+
+  const handleDeleteBudget = async (id: string) => {
+    await deleteBudget(id);
+    refetchData();
+  };
+
+  const monthName = new Date().toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+
+  // Pie chart data
+  const pieData = currentBudgets
     .filter(b => b.spent > 0)
     .map((b, i) => ({
       name: b.category,
@@ -75,36 +108,18 @@ export default function Budgets() {
         <div className="flex items-start justify-between">
           <div>
             <h2 className="text-2xl font-bold text-foreground">Presupuestos</h2>
-            <p className="text-muted-foreground text-sm mt-1">Febrero 2026</p>
+            <p className="text-muted-foreground text-sm mt-1 capitalize">{monthName}</p>
           </div>
           <button onClick={() => setCategoryManagerOpen(true)} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
             <Settings className="w-4 h-4" /> Categorías
           </button>
         </div>
 
-        {/* Global budget */}
+        {/* Global budget summary - auto-calculated */}
         <div className="card-calm p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-label">Presupuesto mensual total</p>
-              {editingTotal ? (
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-foreground font-medium">$</span>
-                  <input type="number" value={tempTotal} onChange={(e) => setTempTotal(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && setEditingTotal(false)} autoFocus
-                    className="text-2xl font-bold text-foreground bg-transparent outline-none w-32 border-b-2 border-primary" />
-                  <button onClick={() => setEditingTotal(false)} className="text-xs text-primary font-medium">Listo</button>
-                </div>
-              ) : (
-                <p className="text-2xl font-bold text-foreground mt-1">{formatMoney(totalBudget)}</p>
-              )}
-            </div>
-            {!editingTotal && (
-              <button onClick={() => { setTempTotal(totalBudget.toString()); setEditingTotal(true); }} className="p-2 rounded-lg hover:bg-accent transition-colors">
-                <Pencil className="w-4 h-4 text-muted-foreground" />
-              </button>
-            )}
-          </div>
+          <p className="text-label">Presupuesto mensual total</p>
+          <p className="text-2xl font-bold text-foreground mt-1">{formatMoney(totalBudget)}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Suma de todos tus presupuestos por categoría</p>
           <div className="flex gap-6 mt-3 text-sm">
             <div><span className="text-muted-foreground">Gastado: </span><span className="text-foreground font-medium">{formatMoney(totalSpent)}</span></div>
             <div><span className="text-muted-foreground">Te queda: </span><span className={cn("font-medium", quedaPorGastar > 0 ? "text-primary" : "text-danger")}>{formatMoney(quedaPorGastar)}</span></div>
@@ -146,7 +161,12 @@ export default function Budgets() {
           <div className="hidden sm:grid grid-cols-5 gap-4 p-4 text-label border-b border-border">
             <span>Categoría</span><span className="text-right">Presupuesto</span><span className="text-right">Gastado</span><span className="text-right">Restante</span><span>Progreso</span>
           </div>
-          {budgets.map((b) => {
+          {currentBudgets.length === 0 && categoriesWithoutBudget.length === 0 && (
+            <div className="p-8 text-center text-muted-foreground text-sm">
+              No tienes presupuestos configurados. Agrega categorías primero.
+            </div>
+          )}
+          {currentBudgets.map((b) => {
             const remaining = b.budgeted - b.spent;
             const pct = b.budgeted > 0 ? Math.min((b.spent / b.budgeted) * 100, 100) : 0;
             const isOver = b.spent > b.budgeted;
@@ -160,6 +180,7 @@ export default function Budgets() {
                 <div className="text-right">
                   {isEditing ? (
                     <div className="flex items-center justify-end gap-1">
+                      <span className="text-sm text-muted-foreground">$</span>
                       <input type="number" value={tempBudgetAmount} onChange={e => setTempBudgetAmount(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && saveBudgetEdit()} autoFocus
                         className="w-20 text-sm text-right bg-transparent border-b-2 border-primary outline-none text-foreground" />
@@ -183,6 +204,37 @@ export default function Budgets() {
             );
           })}
         </div>
+
+        {/* Categories without budget */}
+        {categoriesWithoutBudget.length > 0 && (
+          <div className="card-calm overflow-hidden">
+            <div className="p-4 border-b border-border">
+              <p className="text-label">Categorías sin presupuesto</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Asigna un monto para controlar tus gastos</p>
+            </div>
+            {categoriesWithoutBudget.map((cat) => (
+              <div key={cat.id} className="flex items-center gap-3 p-4 border-b border-border last:border-0">
+                <span className="text-lg">{cat.icon}</span>
+                <span className="flex-1 text-sm font-medium text-foreground">{cat.name}</span>
+                {addingCategoryId === cat.id ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">$</span>
+                    <input type="number" value={newBudgetAmount} onChange={e => setNewBudgetAmount(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && handleAddBudget(cat)} autoFocus placeholder="0"
+                      className="w-24 text-sm text-right bg-transparent border-b-2 border-primary outline-none text-foreground placeholder:text-muted-foreground/40" />
+                    <button onClick={() => handleAddBudget(cat)} className="p-1 text-primary"><Check className="w-4 h-4" /></button>
+                    <button onClick={() => { setAddingCategoryId(null); setNewBudgetAmount(''); }} className="p-1 text-muted-foreground"><X className="w-4 h-4" /></button>
+                  </div>
+                ) : (
+                  <button onClick={() => setAddingCategoryId(cat.id)}
+                    className="flex items-center gap-1 text-sm text-primary hover:text-primary/80 transition-colors font-medium">
+                    <Plus className="w-4 h-4" /> Asignar
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       <QuickAddTransaction />
       <CategoryManager open={categoryManagerOpen} onOpenChange={setCategoryManagerOpen} />
