@@ -4,21 +4,25 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 import { useAppData } from "@/context/AppContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
-import { Upload, FileText, Loader2, Check } from "lucide-react";
+import { Upload, FileText, Loader2, Check, CalendarPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ParsedTransaction {
   date: string;
   amount: number;
-  type: "expense" | "income";
+  type: "expense" | "income" | "transfer";
   merchant: string;
   category: string;
   categoryIcon: string;
+  isSubscription?: boolean;
+  subscriptionName?: string;
   selected: boolean;
+  addedAsSub?: boolean;
 }
 
 function formatMoney(n: number) {
@@ -28,7 +32,7 @@ function formatMoney(n: number) {
 type Step = "upload" | "processing" | "preview" | "importing";
 
 export default function StatementImporter({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
-  const { accounts, addTransaction, categories, addCategory } = useAppData();
+  const { accounts, addTransaction, categories, addCategory, addSubscription } = useAppData();
   const { user } = useAuth();
   const [step, setStep] = useState<Step>("upload");
   const [selectedAccount, setSelectedAccount] = useState<string>("");
@@ -67,7 +71,6 @@ export default function StatementImporter({ open, onOpenChange }: { open: boolea
     setProgress(20);
 
     try {
-      // Upload file to storage
       const ext = file.name.split(".").pop()?.toLowerCase() || "pdf";
       const filePath = `${user.id}/${Date.now()}.${ext}`;
       
@@ -80,7 +83,6 @@ export default function StatementImporter({ open, onOpenChange }: { open: boolea
       }
       setProgress(40);
 
-      // Call edge function
       const { data, error } = await supabase.functions.invoke("parse-statement", {
         body: { filePath },
       });
@@ -97,7 +99,11 @@ export default function StatementImporter({ open, onOpenChange }: { open: boolea
         return;
       }
 
-      setParsed(data.transactions.map((t: any) => ({ ...t, selected: true })));
+      setParsed(data.transactions.map((t: any) => ({
+        ...t,
+        selected: t.type !== "transfer", // transfers deselected by default
+        addedAsSub: false,
+      })));
       setProgress(100);
       setStep("preview");
     } catch (err: any) {
@@ -116,16 +122,34 @@ export default function StatementImporter({ open, onOpenChange }: { open: boolea
     setParsed((prev) => prev.map((t) => ({ ...t, selected: !allSelected })));
   };
 
+  const handleAddSubscription = async (tx: ParsedTransaction, idx: number) => {
+    const name = tx.subscriptionName || tx.merchant;
+    const day = new Date(tx.date).getDate();
+    await addSubscription({
+      name,
+      amount: tx.amount,
+      frequency: "monthly",
+      nextDate: tx.date,
+      paid: false,
+      billingDay: day,
+      subType: "digital",
+      category: tx.category,
+      categoryIcon: tx.categoryIcon,
+    });
+    setParsed(prev => prev.map((t, i) => i === idx ? { ...t, addedAsSub: true } : t));
+    toast.success(`"${name}" agregado a suscripciones`);
+  };
+
   const selectedTxs = parsed.filter((t) => t.selected);
   const totalIncome = selectedTxs.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
   const totalExpense = selectedTxs.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
+  const totalTransfer = selectedTxs.filter((t) => t.type === "transfer").reduce((s, t) => s + t.amount, 0);
 
   const handleConfirm = async () => {
     if (!user || selectedTxs.length === 0) return;
     setStep("importing");
 
     try {
-      // Find new categories that need to be created
       const existingCatNames = new Set(categories.map((c) => c.name));
       const newCats = new Map<string, string>();
       for (const tx of selectedTxs) {
@@ -134,15 +158,13 @@ export default function StatementImporter({ open, onOpenChange }: { open: boolea
         }
       }
 
-      // Create new categories
       for (const [name, icon] of newCats) {
         await addCategory({ name, icon });
       }
 
-      // Insert all transactions
       for (const tx of selectedTxs) {
         await addTransaction({
-          type: tx.type,
+          type: tx.type === "transfer" ? "expense" : tx.type,
           amount: tx.amount,
           currency: "MXN",
           date: tx.date,
@@ -160,6 +182,12 @@ export default function StatementImporter({ open, onOpenChange }: { open: boolea
       toast.error("Error importando movimientos");
       setStep("preview");
     }
+  };
+
+  const typeBadge = (type: string) => {
+    if (type === "transfer") return <Badge variant="outline" className="text-xs bg-warning/10 text-warning border-warning/30">Transferencia</Badge>;
+    if (type === "income") return <Badge variant="outline" className="text-xs bg-success/10 text-success border-success/30">Ingreso</Badge>;
+    return null;
   };
 
   const acceptedTypes = ".pdf,.png,.jpg,.jpeg,.webp";
@@ -240,7 +268,7 @@ export default function StatementImporter({ open, onOpenChange }: { open: boolea
         {step === "preview" && (
           <div className="space-y-4">
             {/* Summary */}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-4 gap-3">
               <div className="card-calm p-3 text-center">
                 <p className="text-xs text-muted-foreground">Seleccionados</p>
                 <p className="text-lg font-semibold text-foreground">{selectedTxs.length}</p>
@@ -253,11 +281,21 @@ export default function StatementImporter({ open, onOpenChange }: { open: boolea
                 <p className="text-xs text-muted-foreground">Gastos</p>
                 <p className="text-lg font-semibold text-foreground">{formatMoney(totalExpense)}</p>
               </div>
+              <div className="card-calm p-3 text-center">
+                <p className="text-xs text-muted-foreground">Transferencias</p>
+                <p className="text-lg font-semibold text-warning">{formatMoney(totalTransfer)}</p>
+              </div>
             </div>
+
+            {/* Info about transfers */}
+            {parsed.some(t => t.type === "transfer") && (
+              <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3">
+                💡 Las transferencias (pagos a tarjeta, traspasos) están deseleccionadas para evitar duplicar ingresos. Puedes seleccionarlas manualmente si lo necesitas.
+              </p>
+            )}
 
             {/* Transaction list */}
             <div className="max-h-[400px] overflow-y-auto border rounded-lg divide-y divide-border">
-              {/* Header */}
               <div className="flex items-center gap-3 p-3 bg-muted/50 sticky top-0">
                 <Checkbox checked={parsed.every((t) => t.selected)} onCheckedChange={toggleAll} />
                 <span className="text-xs font-medium text-muted-foreground flex-1">Movimiento</span>
@@ -268,11 +306,32 @@ export default function StatementImporter({ open, onOpenChange }: { open: boolea
                   <Checkbox checked={tx.selected} onCheckedChange={() => toggleTransaction(idx)} />
                   <span className="text-lg">{tx.categoryIcon}</span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{tx.merchant}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-foreground truncate">{tx.merchant}</p>
+                      {typeBadge(tx.type)}
+                      {tx.isSubscription && (
+                        <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/30">Suscripción</Badge>
+                      )}
+                    </div>
                     <p className="text-xs text-muted-foreground">{tx.category} · {tx.date}</p>
                   </div>
-                  <p className={cn("text-sm font-semibold w-24 text-right", tx.type === "income" ? "text-success" : "text-foreground")}>
-                    {tx.type === "expense" ? "–" : "+"} {formatMoney(tx.amount)}
+                  {tx.isSubscription && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 shrink-0"
+                      disabled={tx.addedAsSub}
+                      onClick={(e) => { e.stopPropagation(); handleAddSubscription(tx, idx); }}
+                      title="Agregar a suscripciones"
+                    >
+                      <CalendarPlus className={cn("w-4 h-4", tx.addedAsSub ? "text-success" : "text-primary")} />
+                    </Button>
+                  )}
+                  <p className={cn(
+                    "text-sm font-semibold w-24 text-right shrink-0",
+                    tx.type === "income" ? "text-success" : tx.type === "transfer" ? "text-warning" : "text-foreground"
+                  )}>
+                    {tx.type === "expense" ? "–" : tx.type === "transfer" ? "↔" : "+"} {formatMoney(tx.amount)}
                   </p>
                 </div>
               ))}

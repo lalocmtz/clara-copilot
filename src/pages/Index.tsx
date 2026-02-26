@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import Layout from "@/components/Layout";
 import QuickAddTransaction from "@/components/QuickAddTransaction";
 import TransactionEditor from "@/components/TransactionEditor";
 import { useAppData } from "@/context/AppContext";
-import { Plus, SlidersHorizontal, Wallet, CalendarClock } from "lucide-react";
+import { Plus, SlidersHorizontal, Wallet, CalendarClock, ChevronLeft, ChevronRight } from "lucide-react";
 import TelegramLink from "@/components/TelegramLink";
 import type { Transaction } from "@/lib/mock-data";
 
@@ -19,14 +19,60 @@ function formatMoney(n: number) {
   return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 0 }).format(n);
 }
 
+function getMonthKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function formatMonthLabel(key: string) {
+  const [y, m] = key.split('-').map(Number);
+  const d = new Date(y, m - 1);
+  const label = d.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
 export default function Index() {
   const navigate = useNavigate();
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [editTx, setEditTx] = useState<Transaction | null>(null);
-  const { transactions, accounts, budgets, subscriptions, investments, monthlyTotals, topCategories } = useAppData();
+  const { transactions, accounts, budgets, subscriptions, investments } = useAppData();
 
-  const totalBudget = budgets.reduce((s, b) => s + b.budgeted, 0);
-  const totalSpent = budgets.reduce((s, b) => s + b.spent, 0);
+  const [selectedMonth, setSelectedMonth] = useState(() => getMonthKey(new Date('2026-02-26')));
+
+  const goMonth = (delta: number) => {
+    const [y, m] = selectedMonth.split('-').map(Number);
+    const d = new Date(y, m - 1 + delta);
+    setSelectedMonth(getMonthKey(d));
+  };
+
+  // Filter transactions for selected month
+  const monthTxs = useMemo(() =>
+    transactions.filter(t => t.date.startsWith(selectedMonth)),
+    [transactions, selectedMonth]
+  );
+
+  const monthlyTotals = useMemo(() => ({
+    income: monthTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0),
+    expenses: monthTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0),
+  }), [monthTxs]);
+
+  const topCategories = useMemo(() => {
+    const expenseTx = monthTxs.filter(t => t.type === 'expense');
+    const totalExp = expenseTx.reduce((s, t) => s + t.amount, 0);
+    const byCategory: Record<string, { amount: number; icon: string }> = {};
+    expenseTx.forEach(t => {
+      if (!byCategory[t.category]) byCategory[t.category] = { amount: 0, icon: t.categoryIcon };
+      byCategory[t.category].amount += t.amount;
+    });
+    return Object.entries(byCategory)
+      .map(([name, { amount, icon }]) => ({ name, icon, amount, percentage: totalExp ? Math.round((amount / totalExp) * 100) : 0 }))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 5);
+  }, [monthTxs]);
+
+  // Budget for selected month
+  const monthBudgets = budgets.filter(b => b.period === selectedMonth);
+  const totalBudget = monthBudgets.reduce((s, b) => s + b.budgeted, 0);
+  const totalSpent = monthBudgets.reduce((s, b) => s + b.spent, 0);
   const budgetPct = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
   const budgetBarColor = budgetPct < 70 ? 'bg-primary' : budgetPct < 90 ? 'bg-warning' : 'bg-danger';
 
@@ -36,9 +82,9 @@ export default function Index() {
   const capitalTotal = liquidez + invested - deuda;
 
   const quedaPorGastar = totalBudget - totalSpent;
-  const recentTransactions = transactions.slice(0, 5);
+  const recentTransactions = monthTxs.slice(0, 5);
 
-  // Upcoming payments
+  // Upcoming payments (always current)
   const now = new Date('2026-02-26');
   const in14 = new Date(now); in14.setDate(in14.getDate() + 14);
   const upcomingPayments: { name: string; amount: number; date: string }[] = [];
@@ -59,9 +105,21 @@ export default function Index() {
   return (
     <Layout>
       <div className="space-y-8">
-        <motion.div {...fadeIn}>
-          <h2 className="text-2xl font-bold text-foreground">Tu panorama</h2>
-          <p className="text-muted-foreground text-sm mt-1">Febrero 2026</p>
+        <motion.div {...fadeIn} className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-foreground">Tu panorama</h2>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => goMonth(-1)} className="p-1.5 rounded-lg hover:bg-accent transition-colors">
+              <ChevronLeft className="w-5 h-5 text-muted-foreground" />
+            </button>
+            <span className="text-sm font-medium text-foreground min-w-[140px] text-center">
+              {formatMonthLabel(selectedMonth)}
+            </span>
+            <button onClick={() => goMonth(1)} className="p-1.5 rounded-lg hover:bg-accent transition-colors">
+              <ChevronRight className="w-5 h-5 text-muted-foreground" />
+            </button>
+          </div>
         </motion.div>
 
         {/* Capital total */}
@@ -106,18 +164,20 @@ export default function Index() {
         </motion.div>
 
         {/* Budget bar */}
-        <motion.div {...fadeIn} transition={{ delay: 0.13 }} className="card-calm p-5">
-          <div className="flex justify-between items-center mb-3">
-            <p className="text-sm font-medium text-foreground">Presupuesto mensual</p>
-            <p className="text-sm text-muted-foreground">{budgetPct}% usado</p>
-          </div>
-          <div className="h-3 bg-secondary rounded-full overflow-hidden">
-            <div className={`h-full rounded-full transition-all duration-500 ${budgetBarColor}`} style={{ width: `${Math.min(budgetPct, 100)}%` }} />
-          </div>
-          <p className="text-xs text-muted-foreground mt-2">
-            {budgetPct < 70 ? '🟢 Vas con margen.' : budgetPct < 90 ? '🟡 Estás cerca del límite.' : '🔴 Te estás pasando.'}
-          </p>
-        </motion.div>
+        {totalBudget > 0 && (
+          <motion.div {...fadeIn} transition={{ delay: 0.13 }} className="card-calm p-5">
+            <div className="flex justify-between items-center mb-3">
+              <p className="text-sm font-medium text-foreground">Presupuesto mensual</p>
+              <p className="text-sm text-muted-foreground">{budgetPct}% usado</p>
+            </div>
+            <div className="h-3 bg-secondary rounded-full overflow-hidden">
+              <div className={`h-full rounded-full transition-all duration-500 ${budgetBarColor}`} style={{ width: `${Math.min(budgetPct, 100)}%` }} />
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              {budgetPct < 70 ? '🟢 Vas con margen.' : budgetPct < 90 ? '🟡 Estás cerca del límite.' : '🔴 Te estás pasando.'}
+            </p>
+          </motion.div>
+        )}
 
         {/* Pagos próximos */}
         {upcomingPayments.length > 0 && (
@@ -140,43 +200,51 @@ export default function Index() {
         {/* Top Categories */}
         <motion.div {...fadeIn} transition={{ delay: 0.2 }} className="card-calm p-5">
           <h3 className="text-sm font-medium text-foreground mb-4">Top 5 categorías</h3>
-          <div className="space-y-3">
-            {topCategories.map((cat) => (
-              <div key={cat.name} className="flex items-center gap-3">
-                <span className="text-lg">{cat.icon}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-sm text-foreground">{cat.name}</span>
-                    <span className="text-sm font-medium text-foreground">{formatMoney(cat.amount)}</span>
-                  </div>
-                  <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-                    <div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: `${cat.percentage}%` }} />
+          {topCategories.length > 0 ? (
+            <div className="space-y-3">
+              {topCategories.map((cat) => (
+                <div key={cat.name} className="flex items-center gap-3">
+                  <span className="text-lg">{cat.icon}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-sm text-foreground">{cat.name}</span>
+                      <span className="text-sm font-medium text-foreground">{formatMoney(cat.amount)}</span>
+                    </div>
+                    <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+                      <div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: `${cat.percentage}%` }} />
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Sin gastos en este mes.</p>
+          )}
         </motion.div>
 
-        {/* Recent Transactions — clickable */}
+        {/* Recent Transactions */}
         <motion.div {...fadeIn} transition={{ delay: 0.25 }} className="card-calm p-5">
           <h3 className="text-sm font-medium text-foreground mb-4">Últimos movimientos</h3>
-          <div className="space-y-3">
-            {recentTransactions.map((tx) => (
-              <button key={tx.id} onClick={() => setEditTx(tx)} className="flex items-center justify-between py-1 w-full text-left hover:bg-accent/30 rounded-lg px-2 -mx-2 transition-colors">
-                <div className="flex items-center gap-3">
-                  <span className="text-lg">{tx.categoryIcon}</span>
-                  <div>
-                    <p className="text-sm text-foreground">{tx.merchant || tx.notes || tx.category}</p>
-                    <p className="text-xs text-muted-foreground">{tx.date}</p>
+          {recentTransactions.length > 0 ? (
+            <div className="space-y-3">
+              {recentTransactions.map((tx) => (
+                <button key={tx.id} onClick={() => setEditTx(tx)} className="flex items-center justify-between py-1 w-full text-left hover:bg-accent/30 rounded-lg px-2 -mx-2 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <span className="text-lg">{tx.categoryIcon}</span>
+                    <div>
+                      <p className="text-sm text-foreground">{tx.merchant || tx.notes || tx.category}</p>
+                      <p className="text-xs text-muted-foreground">{tx.date}</p>
+                    </div>
                   </div>
-                </div>
-                <span className={`text-sm font-medium ${tx.type === 'income' ? 'text-success' : 'text-foreground'}`}>
-                  {tx.type === 'expense' ? '–' : '+'} {formatMoney(tx.amount)}
-                </span>
-              </button>
-            ))}
-          </div>
+                  <span className={`text-sm font-medium ${tx.type === 'income' ? 'text-success' : 'text-foreground'}`}>
+                    {tx.type === 'expense' ? '–' : '+'} {formatMoney(tx.amount)}
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Sin movimientos en este mes.</p>
+          )}
         </motion.div>
       </div>
 
