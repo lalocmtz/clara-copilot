@@ -1,37 +1,29 @@
 
-# Agregar "Convertir a suscripcion recurrente" desde el editor de transacciones
 
-## Resumen
-Agregar un boton en el editor de transacciones (TransactionEditor) que permita convertir cualquier gasto en una suscripcion recurrente. Al presionarlo, se crea automaticamente una suscripcion con el nombre del comercio, el monto, la categoria, y el dia de cobro extraido de la fecha de la transaccion. La transaccion original permanece intacta en el historial.
+# Agregar edicion y eliminacion de categorias con presupuesto asignado
 
-## Flujo del usuario
-1. El usuario sube un estado de cuenta o registra un gasto manualmente
-2. Ve la transaccion en la lista de transacciones y hace click para editarla
-3. En el editor aparece un boton "Agregar como suscripcion recurrente" (solo visible para gastos, no para ingresos ni transferencias)
-4. Al presionarlo, se crea una suscripcion con:
-   - Nombre: el comercio (`merchant`) o la categoria si no hay comercio
-   - Monto: el monto de la transaccion
-   - Dia de cobro: el dia del mes de la fecha de la transaccion
-   - Categoria e icono: los mismos de la transaccion
-   - Tipo: "digital" por defecto
-   - Frecuencia: "monthly" por defecto
-5. Se muestra un toast confirmando: "Netflix agregado a suscripciones"
-6. El boton cambia a un estado "ya agregado" (con check verde) para evitar duplicados accidentales
-7. La transaccion sigue existiendo como gasto normal
+## Problema actual
+Las categorias que ya tienen un presupuesto asignado (Comida, Transporte, Servicios, etc.) solo se pueden editar desde el modal de "Categorias" (icono de engrane). Pero en la tabla de presupuestos no hay forma de editarlas o eliminarlas directamente, y el usuario necesita poder hacerlo para limpiar las categorias precargadas.
 
-## Cambios tecnicos
+## Solucion
+Agregar botones de editar y eliminar directamente en cada fila de la tabla de presupuestos, y tambien asegurar que al eliminar una categoria desde el CategoryManager se elimine su presupuesto asociado.
 
-### `src/components/TransactionEditor.tsx`
-- Importar `addSubscription` desde `useAppData`
-- Importar `CalendarPlus`, `Check` de lucide-react y `toast` de sonner
-- Agregar estado local `addedAsSub` (boolean, reset en useEffect al abrir)
-- Agregar funcion `handleAddSubscription` que:
-  - Extrae el dia del mes de `transaction.date`
-  - Llama a `addSubscription` con nombre, monto, dia, categoria, icono
-  - Muestra toast de exito
-  - Cambia `addedAsSub` a true
-- Renderizar un boton entre las notas y los botones de accion, solo cuando `type === 'expense'`
-- El boton muestra icono CalendarPlus + texto "Agregar como suscripcion recurrente"
-- Si ya se agrego, muestra icono Check verde + texto "Agregado a suscripciones" y esta deshabilitado
+## Cambios
 
-No se necesitan cambios en la base de datos, contexto, ni otros componentes. La funcionalidad de `addSubscription` ya existe y soporta todos los campos necesarios.
+### `src/pages/Budgets.tsx`
+- Agregar un boton de eliminar (icono Trash2) en cada fila de presupuesto existente
+- Al presionar eliminar, mostrar confirmacion inline (igual que en CategoryManager)
+- Al confirmar, llamar a `deleteBudget(id)` para quitar el presupuesto de esa categoria
+- Agregar un boton de editar categoria (icono Pencil) que abre el CategoryManager con esa categoria preseleccionada, o alternativamente, permite renombrar la categoria inline
+- Importar iconos adicionales: `Pencil`, `Trash2`
+
+### Comportamiento esperado
+- Cada fila de presupuesto tendra: nombre de categoria, monto (ya editable con click), gastado, restante, progreso, y un boton de eliminar presupuesto
+- Al eliminar un presupuesto, la categoria vuelve a aparecer en "Categorias sin presupuesto" (si sigue activa)
+- El boton de Categorias (engrane) sigue funcionando igual para editar nombre/icono o eliminar categorias completamente
+
+### Detalle tecnico
+- En la fila de cada budget, agregar un icono Trash2 al final con confirmacion
+- Agregar estado `confirmDeleteBudgetId` para manejar la confirmacion inline
+- La funcion `handleDeleteBudget` ya existe, solo falta exponerla en la UI de cada fila
+
