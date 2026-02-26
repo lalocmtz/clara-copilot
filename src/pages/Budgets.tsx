@@ -1,9 +1,9 @@
 import { useState } from "react";
 import Layout from "@/components/Layout";
 import QuickAddTransaction from "@/components/QuickAddTransaction";
-import { budgets } from "@/lib/mock-data";
+import { useAppData } from "@/context/AppContext";
 import { cn } from "@/lib/utils";
-import { Pencil, Settings } from "lucide-react";
+import { Pencil, Settings, Check, X } from "lucide-react";
 import CategoryManager from "@/components/CategoryManager";
 
 function formatMoney(n: number) {
@@ -11,6 +11,8 @@ function formatMoney(n: number) {
 }
 
 export default function Budgets() {
+  const { budgets, updateBudget } = useAppData();
+
   const totalBudget = budgets.reduce((s, b) => s + b.budgeted, 0);
   const totalSpent = budgets.reduce((s, b) => s + b.spent, 0);
   const quedaPorGastar = totalBudget - totalSpent;
@@ -18,6 +20,20 @@ export default function Budgets() {
   const [editingTotal, setEditingTotal] = useState(false);
   const [tempTotal, setTempTotal] = useState(totalBudget.toString());
   const [categoryManagerOpen, setCategoryManagerOpen] = useState(false);
+  const [editingBudgetId, setEditingBudgetId] = useState<string | null>(null);
+  const [tempBudgetAmount, setTempBudgetAmount] = useState('');
+
+  const startEditBudget = (id: string, current: number) => {
+    setEditingBudgetId(id);
+    setTempBudgetAmount(current.toString());
+  };
+
+  const saveBudgetEdit = () => {
+    if (editingBudgetId && tempBudgetAmount) {
+      updateBudget(editingBudgetId, { budgeted: parseFloat(tempBudgetAmount) });
+    }
+    setEditingBudgetId(null);
+  };
 
   return (
     <Layout>
@@ -27,16 +43,12 @@ export default function Budgets() {
             <h2 className="text-2xl font-bold text-foreground">Presupuestos</h2>
             <p className="text-muted-foreground text-sm mt-1">Febrero 2026</p>
           </div>
-          <button
-            onClick={() => setCategoryManagerOpen(true)}
-            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <Settings className="w-4 h-4" />
-            Categorías
+          <button onClick={() => setCategoryManagerOpen(true)} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+            <Settings className="w-4 h-4" /> Categorías
           </button>
         </div>
 
-        {/* Presupuesto global */}
+        {/* Global budget */}
         <div className="card-calm p-5">
           <div className="flex items-center justify-between">
             <div>
@@ -44,74 +56,63 @@ export default function Budgets() {
               {editingTotal ? (
                 <div className="flex items-center gap-2 mt-1">
                   <span className="text-foreground font-medium">$</span>
-                  <input
-                    type="number"
-                    value={tempTotal}
-                    onChange={(e) => setTempTotal(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && setEditingTotal(false)}
-                    autoFocus
-                    className="text-2xl font-bold text-foreground bg-transparent outline-none w-32 border-b-2 border-primary"
-                  />
-                  <button
-                    onClick={() => setEditingTotal(false)}
-                    className="text-xs text-primary font-medium"
-                  >
-                    Listo
-                  </button>
+                  <input type="number" value={tempTotal} onChange={(e) => setTempTotal(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && setEditingTotal(false)} autoFocus
+                    className="text-2xl font-bold text-foreground bg-transparent outline-none w-32 border-b-2 border-primary" />
+                  <button onClick={() => setEditingTotal(false)} className="text-xs text-primary font-medium">Listo</button>
                 </div>
               ) : (
                 <p className="text-2xl font-bold text-foreground mt-1">{formatMoney(totalBudget)}</p>
               )}
             </div>
             {!editingTotal && (
-              <button onClick={() => setEditingTotal(true)} className="p-2 rounded-lg hover:bg-accent transition-colors">
+              <button onClick={() => { setTempTotal(totalBudget.toString()); setEditingTotal(true); }} className="p-2 rounded-lg hover:bg-accent transition-colors">
                 <Pencil className="w-4 h-4 text-muted-foreground" />
               </button>
             )}
           </div>
           <div className="flex gap-6 mt-3 text-sm">
-            <div>
-              <span className="text-muted-foreground">Gastado: </span>
-              <span className="text-foreground font-medium">{formatMoney(totalSpent)}</span>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Te queda: </span>
-              <span className={cn("font-medium", quedaPorGastar > 0 ? "text-primary" : "text-danger")}>
-                {formatMoney(quedaPorGastar)}
-              </span>
-            </div>
+            <div><span className="text-muted-foreground">Gastado: </span><span className="text-foreground font-medium">{formatMoney(totalSpent)}</span></div>
+            <div><span className="text-muted-foreground">Te queda: </span><span className={cn("font-medium", quedaPorGastar > 0 ? "text-primary" : "text-danger")}>{formatMoney(quedaPorGastar)}</span></div>
           </div>
         </div>
 
+        {/* Per-category budgets */}
         <div className="card-calm overflow-hidden">
           <div className="hidden sm:grid grid-cols-5 gap-4 p-4 text-label border-b border-border">
-            <span>Categoría</span>
-            <span className="text-right">Presupuesto</span>
-            <span className="text-right">Gastado</span>
-            <span className="text-right">Restante</span>
-            <span>Progreso</span>
+            <span>Categoría</span><span className="text-right">Presupuesto</span><span className="text-right">Gastado</span><span className="text-right">Restante</span><span>Progreso</span>
           </div>
           {budgets.map((b) => {
             const remaining = b.budgeted - b.spent;
             const pct = Math.min((b.spent / b.budgeted) * 100, 100);
             const isOver = b.spent > b.budgeted;
+            const isEditing = editingBudgetId === b.id;
             return (
               <div key={b.id} className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-4 p-4 border-b border-border last:border-0 items-center">
                 <div className="flex items-center gap-2">
                   <span>{b.categoryIcon}</span>
                   <span className="text-sm font-medium text-foreground">{b.category}</span>
                 </div>
-                <span className="text-sm text-right text-muted-foreground">{formatMoney(b.budgeted)}</span>
+                <div className="text-right">
+                  {isEditing ? (
+                    <div className="flex items-center justify-end gap-1">
+                      <input type="number" value={tempBudgetAmount} onChange={e => setTempBudgetAmount(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && saveBudgetEdit()} autoFocus
+                        className="w-20 text-sm text-right bg-transparent border-b-2 border-primary outline-none text-foreground" />
+                      <button onClick={saveBudgetEdit} className="p-1 text-primary"><Check className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => setEditingBudgetId(null)} className="p-1 text-muted-foreground"><X className="w-3.5 h-3.5" /></button>
+                    </div>
+                  ) : (
+                    <button onClick={() => startEditBudget(b.id, b.budgeted)} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                      {formatMoney(b.budgeted)}
+                    </button>
+                  )}
+                </div>
                 <span className="text-sm text-right text-foreground font-medium">{formatMoney(b.spent)}</span>
-                <span className={cn("text-sm text-right font-medium", isOver ? "text-danger" : "text-success")}>
-                  {formatMoney(remaining)}
-                </span>
+                <span className={cn("text-sm text-right font-medium", isOver ? "text-danger" : "text-success")}>{formatMoney(remaining)}</span>
                 <div className="col-span-2 sm:col-span-1">
                   <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                    <div
-                      className={cn("h-full rounded-full transition-all duration-500", isOver ? "bg-danger" : pct > 70 ? "bg-warning" : "bg-primary")}
-                      style={{ width: `${pct}%` }}
-                    />
+                    <div className={cn("h-full rounded-full transition-all duration-500", isOver ? "bg-danger" : pct > 70 ? "bg-warning" : "bg-primary")} style={{ width: `${pct}%` }} />
                   </div>
                 </div>
               </div>
