@@ -1,15 +1,20 @@
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { Home, ArrowUpDown, PieChart, Wallet, RotateCw, Lightbulb, Menu, X, LogOut } from "lucide-react";
+import { Home, ArrowUpDown, PieChart, Wallet, RotateCw, Lightbulb, Menu, X, LogOut, CreditCard, Landmark, TrendingUp, UserCheck, Bot, DollarSign } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 
 const navItems = [
-  { to: "/", label: "Tu panorama", icon: Home },
-  { to: "/transactions", label: "Transacciones", icon: ArrowUpDown },
+  { to: "/", label: "Panorama", icon: Home },
+  { to: "/transactions", label: "Movimientos", icon: ArrowUpDown },
   { to: "/budgets", label: "Presupuestos", icon: PieChart },
+  { to: "/income", label: "Ingresos", icon: DollarSign },
+  { to: "/debts", label: "Deudas", icon: Landmark },
+  { to: "/cards", label: "Tarjetas", icon: CreditCard },
   { to: "/accounts", label: "Cuentas", icon: Wallet },
+  { to: "/receivables", label: "Por cobrar", icon: UserCheck },
   { to: "/subscriptions", label: "Suscripciones", icon: RotateCw },
+  { to: "/assistant", label: "Asistente", icon: Bot },
   { to: "/insights", label: "Insights", icon: Lightbulb },
 ];
 
@@ -21,18 +26,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-background flex">
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex flex-col w-64 bg-sidebar border-r border-sidebar-border p-6 fixed h-full">
-        <div className="mb-10">
+        <div className="mb-8">
           <h1 className="text-2xl font-bold text-foreground tracking-tight">Clara</h1>
           <p className="text-xs text-muted-foreground mt-1">Tu copiloto financiero</p>
         </div>
-        <nav className="flex flex-col gap-1 flex-1">
+        <nav className="flex flex-col gap-0.5 flex-1 overflow-y-auto">
           {navItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               className={({ isActive }) =>
                 cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
+                  "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200",
                   isActive
                     ? "bg-sidebar-accent text-sidebar-accent-foreground"
                     : "text-sidebar-foreground hover:bg-accent hover:text-foreground"
@@ -57,10 +62,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Mobile header */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-sidebar border-b border-sidebar-border px-4 py-3 flex items-center justify-between">
         <h1 className="text-xl font-bold text-foreground">Clara</h1>
-        <button
-          onClick={() => setMobileOpen(!mobileOpen)}
-          className="p-2 rounded-lg hover:bg-accent transition-colors"
-        >
+        <button onClick={() => setMobileOpen(!mobileOpen)} className="p-2 rounded-lg hover:bg-accent transition-colors">
           {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </button>
       </div>
@@ -68,11 +70,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Mobile nav overlay */}
       {mobileOpen && (
         <div className="lg:hidden fixed inset-0 z-40 bg-background/80 backdrop-blur-sm" onClick={() => setMobileOpen(false)}>
-          <div className="bg-sidebar w-64 h-full p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
-            <div className="mb-8 mt-12">
+          <div className="bg-sidebar w-64 h-full p-6 shadow-lg overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-6 mt-12">
               <p className="text-xs text-muted-foreground">Tu copiloto financiero</p>
             </div>
-            <nav className="flex flex-col gap-1">
+            <nav className="flex flex-col gap-0.5">
               {navItems.map((item) => (
                 <NavLink
                   key={item.to}
@@ -80,7 +82,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   onClick={() => setMobileOpen(false)}
                   className={({ isActive }) =>
                     cn(
-                      "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
+                      "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200",
                       isActive
                         ? "bg-sidebar-accent text-sidebar-accent-foreground"
                         : "text-sidebar-foreground hover:bg-accent hover:text-foreground"
