@@ -12,7 +12,7 @@ interface Props {
   onOpenChange: (open: boolean) => void;
 }
 
-const typeLabels: Record<string, string> = { checking: 'Débito', savings: 'Ahorro', credit: 'Crédito', debt: 'Deuda' };
+const typeLabels: Record<string, string> = { checking: 'Débito', savings: 'Ahorro', debt: 'Deuda' };
 
 export default function AccountEditor({ account, isNew, open, onOpenChange }: Props) {
   const { addAccount, updateAccount, deleteAccount } = useAppData();
@@ -84,8 +84,8 @@ export default function AccountEditor({ account, isNew, open, onOpenChange }: Pr
             </div>
 
             {/* Type */}
-            <div className="grid grid-cols-4 bg-secondary rounded-lg p-1 mb-5">
-              {(['checking', 'savings', 'credit', 'debt'] as const).map(t => (
+            <div className="grid grid-cols-3 bg-secondary rounded-lg p-1 mb-5">
+              {(['checking', 'savings', 'debt'] as const).map(t => (
                 <button key={t} onClick={() => setType(t)}
                   className={cn("py-2 text-sm font-medium rounded-md transition-all", type === t ? "bg-card text-foreground shadow-sm" : "text-muted-foreground")}>
                   {typeLabels[t]}

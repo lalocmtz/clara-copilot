@@ -1,8 +1,9 @@
 import { useState } from "react";
 import Layout from "@/components/Layout";
-import { useDebts, useDebtMutations, snowballOrder, avalancheOrder, calculatePayoff, type Debt } from "@/services/debts";
+import { useDebts, useDebtMutations, useUnifiedObligations, snowballOrder, avalancheOrder, calculatePayoff, type Debt, type DebtObligation } from "@/services/debts";
+import { useFinancialPosition } from "@/services/financial-position";
 import { cn } from "@/lib/utils";
-import { Landmark, Plus, TrendingDown, Zap, ArrowDownRight } from "lucide-react";
+import { Landmark, Plus, TrendingDown, Zap, ArrowDownRight, CreditCard, Shield } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,8 +18,8 @@ function formatMoney(n: number) {
 const fadeIn = { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.3 } };
 
 const debtTypeLabels: Record<string, string> = {
-  personal_loan: 'Préstamo personal', credit_card: 'Tarjeta de crédito', family: 'Familiar',
-  supplier: 'Proveedor', mortgage: 'Hipoteca', other: 'Otro',
+  personal_loan: 'Préstamo personal', family: 'Familiar',
+  supplier: 'Proveedor', mortgage: 'Hipoteca', auto: 'Auto', other: 'Otro',
 };
 
 function DebtEditor({ debt, isNew, open, onOpenChange }: { debt: Debt | null; isNew: boolean; open: boolean; onOpenChange: (o: boolean) => void }) {
@@ -67,17 +68,6 @@ function DebtEditor({ debt, isNew, open, onOpenChange }: { debt: Debt | null; is
               <SelectContent>{Object.entries(debtTypeLabels).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
             </Select>
           </div>
-          <div>
-            <Label className="text-xs text-muted-foreground">Estrategia</Label>
-            <Select value={form.strategyTag} onValueChange={v => setForm(p => ({ ...p, strategyTag: v as 'avalanche' | 'snowball' | 'manual' }))}>
-              <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="avalanche">Avalancha (mayor interés primero)</SelectItem>
-                <SelectItem value="snowball">Bola de nieve (menor saldo primero)</SelectItem>
-                <SelectItem value="manual">Manual</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
           <Button onClick={handleSave} className="w-full" disabled={!form.name}>{isNew ? 'Agregar deuda' : 'Guardar'}</Button>
           {!isNew && <Button variant="outline" onClick={() => { if (debt) { remove.mutateAsync(debt.id); onOpenChange(false); } }} className="w-full text-destructive">Eliminar</Button>}
         </div>
@@ -87,17 +77,16 @@ function DebtEditor({ debt, isNew, open, onOpenChange }: { debt: Debt | null; is
 }
 
 export default function Debts() {
-  const { data: debts = [], isLoading } = useDebts();
+  const { data: obligations = [], isLoading } = useUnifiedObligations();
+  const pos = useFinancialPosition();
   const [editDebt, setEditDebt] = useState<Debt | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [strategy, setStrategy] = useState<'avalanche' | 'snowball'>('avalanche');
 
-  const active = debts.filter(d => d.active && d.currentBalance > 0);
-  const totalDebt = active.reduce((s, d) => s + d.currentBalance, 0);
-  const totalMinimum = active.reduce((s, d) => s + d.minimumPayment, 0);
-  const avgApr = active.length > 0 ? active.reduce((s, d) => s + d.apr, 0) / active.length : 0;
+  const totalMinimum = obligations.reduce((s, d) => s + d.minimumPayment, 0);
+  const avgApr = obligations.length > 0 ? obligations.reduce((s, d) => s + d.apr, 0) / obligations.length : 0;
 
-  const ordered = strategy === 'avalanche' ? avalancheOrder(active) : snowballOrder(active);
+  const ordered = strategy === 'avalanche' ? avalancheOrder(obligations) : snowballOrder(obligations);
 
   return (
     <Layout>
@@ -105,29 +94,42 @@ export default function Debts() {
         <motion.div {...fadeIn} className="flex items-start justify-between">
           <div>
             <h2 className="text-2xl font-bold text-foreground">Deudas</h2>
-            <p className="text-muted-foreground text-sm mt-1">Estrategia y seguimiento</p>
+            <p className="text-muted-foreground text-sm mt-1">Vista estratégica unificada</p>
           </div>
           <button onClick={() => { setEditDebt(null); setIsNew(true); }} className="flex items-center gap-1.5 text-sm text-primary font-medium hover:opacity-80">
-            <Plus className="w-4 h-4" /> Agregar
+            <Plus className="w-4 h-4" /> Agregar deuda
           </button>
         </motion.div>
 
-        <motion.div {...fadeIn} transition={{ delay: 0.05 }} className="grid grid-cols-3 gap-3">
-          <div className="card-calm p-4">
-            <p className="text-label">Deuda total</p>
-            <p className="text-xl font-bold text-danger mt-1">{formatMoney(totalDebt)}</p>
+        {/* Section 1: Debt summary */}
+        <motion.div {...fadeIn} transition={{ delay: 0.05 }}>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="card-calm p-4">
+              <p className="text-label">Deuda tarjetas</p>
+              <p className="text-xl font-bold text-danger mt-1">{formatMoney(pos.totalCardDebt)}</p>
+            </div>
+            <div className="card-calm p-4">
+              <p className="text-label">Deuda no tarjeta</p>
+              <p className="text-xl font-bold text-danger mt-1">{formatMoney(pos.totalNonCardDebt)}</p>
+            </div>
+            <div className="card-calm p-4">
+              <p className="text-label">Deuda total</p>
+              <p className="text-xl font-bold text-foreground mt-1">{formatMoney(pos.totalDebt)}</p>
+            </div>
           </div>
-          <div className="card-calm p-4">
-            <p className="text-label">Pago mínimo/mes</p>
-            <p className="text-xl font-bold text-foreground mt-1">{formatMoney(totalMinimum)}</p>
-          </div>
-          <div className="card-calm p-4">
-            <p className="text-label">Tasa promedio</p>
-            <p className="text-xl font-bold text-warning mt-1">{avgApr.toFixed(1)}%</p>
+          <div className="grid grid-cols-2 gap-3 mt-3">
+            <div className="card-calm p-4">
+              <p className="text-label">Pago mínimo/mes</p>
+              <p className="text-lg font-semibold text-foreground mt-1">{formatMoney(totalMinimum)}</p>
+            </div>
+            <div className="card-calm p-4">
+              <p className="text-label">Tasa promedio</p>
+              <p className="text-lg font-semibold text-warning mt-1">{avgApr.toFixed(1)}%</p>
+            </div>
           </div>
         </motion.div>
 
-        {/* Strategy selector */}
+        {/* Section 2: Strategy selector */}
         <motion.div {...fadeIn} transition={{ delay: 0.1 }} className="flex gap-2">
           <button onClick={() => setStrategy('avalanche')}
             className={cn("flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all",
@@ -142,51 +144,68 @@ export default function Debts() {
         </motion.div>
 
         <p className="text-xs text-muted-foreground -mt-3">
-          {strategy === 'avalanche' ? 'Prioriza la deuda con mayor tasa de interés → ahorras más en intereses.' : 'Prioriza la deuda más pequeña → ganas momentum pagando rápido.'}
+          {strategy === 'avalanche' ? 'Prioriza la obligación con mayor tasa de interés → ahorras más en intereses.' : 'Prioriza la obligación más pequeña → ganas momentum pagando rápido.'}
         </p>
 
+        {/* Section 3: Unified priority list */}
         {isLoading ? (
           <div className="space-y-3">{[1, 2].map(i => <div key={i} className="card-calm h-24 animate-pulse" />)}</div>
         ) : ordered.length === 0 ? (
           <div className="card-calm p-8 text-center">
-            <Landmark className="w-8 h-8 mx-auto text-muted-foreground mb-3" />
-            <p className="text-sm text-muted-foreground">No tienes deudas registradas 🎉</p>
-            <Button variant="outline" size="sm" className="mt-3" onClick={() => { setEditDebt(null); setIsNew(true); }}>
-              <Plus className="w-4 h-4 mr-1" /> Agregar deuda
-            </Button>
+            <Shield className="w-8 h-8 mx-auto text-muted-foreground mb-3" />
+            <p className="text-sm text-muted-foreground">No tienes deudas activas 🎉</p>
           </div>
         ) : (
           <div className="space-y-3">
-            {ordered.map((debt, i) => {
-              const payoff = calculatePayoff(debt, debt.minimumPayment);
-              const paidPct = debt.originalAmount > 0 ? Math.round(((debt.originalAmount - debt.currentBalance) / debt.originalAmount) * 100) : 0;
+            {ordered.map((ob, i) => {
+              const payoff = calculatePayoff(ob.currentBalance, ob.apr, ob.minimumPayment);
+              const sourceLabel = ob.source === 'credit_card' ? 'Tarjeta' : 'Préstamo';
+              const SourceIcon = ob.source === 'credit_card' ? CreditCard : Landmark;
               return (
-                <motion.div key={debt.id} {...fadeIn} transition={{ delay: 0.15 + i * 0.05 }}>
-                  <button onClick={() => { setEditDebt(debt); setIsNew(false); }}
-                    className={cn("card-calm w-full p-5 text-left hover:bg-accent/30 transition-colors", i === 0 && "ring-2 ring-primary/30")}>
+                <motion.div key={ob.obligationId} {...fadeIn} transition={{ delay: 0.15 + i * 0.05 }}>
+                  <div className={cn("card-calm w-full p-5 text-left", i === 0 && "ring-2 ring-primary/30")}>
                     {i === 0 && <p className="text-xs font-medium text-primary mb-2">⚡ Prioridad #1</p>}
                     <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <p className="text-sm font-semibold text-foreground">{debt.name}</p>
-                        <p className="text-xs text-muted-foreground">{debt.creditor || debtTypeLabels[debt.type] || 'Otro'}</p>
+                      <div className="flex items-center gap-2">
+                        <SourceIcon className="w-4 h-4 text-muted-foreground" />
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">{ob.name}</p>
+                          <div className="flex items-center gap-2">
+                            <span className={cn("text-xs px-1.5 py-0.5 rounded-full font-medium",
+                              ob.source === 'credit_card' ? "bg-primary/10 text-primary" : "bg-secondary text-muted-foreground"
+                            )}>{sourceLabel}</span>
+                            {ob.creditor && <span className="text-xs text-muted-foreground">{ob.creditor}</span>}
+                          </div>
+                        </div>
                       </div>
-                      <p className="text-lg font-bold text-danger">{formatMoney(debt.currentBalance)}</p>
+                      <p className="text-lg font-bold text-danger">{formatMoney(ob.currentBalance)}</p>
                     </div>
-                    <div className="h-2 bg-secondary rounded-full overflow-hidden mb-2">
-                      <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${paidPct}%` }} />
+
+                    {ob.utilization != null && (
+                      <div className="h-2 bg-secondary rounded-full overflow-hidden mb-2">
+                        <div className={cn("h-full rounded-full transition-all",
+                          ob.utilization >= 60 ? "bg-danger" : ob.utilization >= 40 ? "bg-warning" : "bg-primary"
+                        )} style={{ width: `${Math.min(ob.utilization, 100)}%` }} />
+                      </div>
+                    )}
+
+                    <div className="flex gap-4 text-xs text-muted-foreground flex-wrap">
+                      <span>Tasa: {ob.apr}%</span>
+                      <span>Mínimo: {formatMoney(ob.minimumPayment)}</span>
+                      {ob.noInterestPayment && <span>Sin intereses: {formatMoney(ob.noInterestPayment)}</span>}
+                      {ob.dueDay && <span>Día pago: {ob.dueDay}</span>}
+                      {payoff.months < Infinity && payoff.months > 0 && <span>~{payoff.months} meses</span>}
                     </div>
-                    <div className="flex gap-4 text-xs text-muted-foreground">
-                      <span>{paidPct}% pagado</span>
-                      <span>Tasa: {debt.apr}%</span>
-                      <span>Mínimo: {formatMoney(debt.minimumPayment)}</span>
-                      {payoff.months < Infinity && <span>~{payoff.months} meses</span>}
-                    </div>
-                  </button>
+                  </div>
                 </motion.div>
               );
             })}
           </div>
         )}
+
+        <p className="text-xs text-muted-foreground text-center mt-2">
+          Las tarjetas se gestionan desde <span className="font-medium text-primary">Tarjetas</span>. Aquí solo se agregan deudas no tarjeta.
+        </p>
       </div>
       <DebtEditor debt={editDebt} isNew={isNew} open={!!editDebt || isNew} onOpenChange={(o) => { if (!o) { setEditDebt(null); setIsNew(false); } }} />
     </Layout>

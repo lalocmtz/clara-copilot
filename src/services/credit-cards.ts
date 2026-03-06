@@ -18,6 +18,7 @@ export interface CreditCard {
   minimumPayment?: number;
   noInterestPayment?: number;
   apr?: number;
+  notes?: string;
   active: boolean;
 }
 
@@ -37,6 +38,7 @@ const mapRow = (r: any): CreditCard => ({
   minimumPayment: r.minimum_payment != null ? Number(r.minimum_payment) : undefined,
   noInterestPayment: r.no_interest_payment != null ? Number(r.no_interest_payment) : undefined,
   apr: r.apr != null ? Number(r.apr) : undefined,
+  notes: r.notes ?? undefined,
   active: r.active,
 });
 
@@ -80,6 +82,7 @@ export function useCreditCardMutations() {
         minimum_payment: card.minimumPayment ?? null,
         no_interest_payment: card.noInterestPayment ?? null,
         apr: card.apr ?? null,
+        notes: card.notes ?? null,
         active: card.active ?? true,
       } as any).select().single();
       if (error) throw error;
@@ -103,6 +106,7 @@ export function useCreditCardMutations() {
       if (updates.minimumPayment !== undefined) dbUpdates.minimum_payment = updates.minimumPayment;
       if (updates.noInterestPayment !== undefined) dbUpdates.no_interest_payment = updates.noInterestPayment;
       if (updates.apr !== undefined) dbUpdates.apr = updates.apr;
+      if (updates.notes !== undefined) dbUpdates.notes = updates.notes;
       if (updates.active !== undefined) dbUpdates.active = updates.active;
       const { error } = await supabase.from("credit_cards").update(dbUpdates).eq("id", id);
       if (error) throw error;
@@ -132,4 +136,38 @@ export function getRiskLevel(card: CreditCard): 'low' | 'medium' | 'high' | 'cri
   if (util >= 60) return 'high';
   if (util >= 40) return 'medium';
   return 'low';
+}
+
+export interface CardRiskMetrics {
+  utilization: number;
+  daysToClosing: number | null;
+  daysToDue: number | null;
+  riskLevel: 'low' | 'medium' | 'high' | 'critical';
+  currentBalance: number;
+  availableCredit: number;
+  minimumPayment: number;
+  noInterestPayment: number | null;
+}
+
+export function getCardRiskMetrics(card: CreditCard): CardRiskMetrics {
+  const now = new Date();
+  const currentDay = now.getDate();
+  
+  const daysTo = (targetDay: number | undefined): number | null => {
+    if (!targetDay) return null;
+    let diff = targetDay - currentDay;
+    if (diff < 0) diff += 30; // approximate
+    return diff;
+  };
+
+  return {
+    utilization: getUtilizationPct(card),
+    daysToClosing: daysTo(card.closingDay),
+    daysToDue: daysTo(card.dueDay),
+    riskLevel: getRiskLevel(card),
+    currentBalance: Math.abs(card.currentBalance),
+    availableCredit: card.creditLimit - Math.abs(card.currentBalance),
+    minimumPayment: card.minimumPayment || 0,
+    noInterestPayment: card.noInterestPayment ?? null,
+  };
 }

@@ -1,12 +1,14 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Layout from "@/components/Layout";
-import { useCreditCards, useCreditCardMutations, getUtilizationPct, getRiskLevel, type CreditCard } from "@/services/credit-cards";
+import { useCreditCards, useCreditCardMutations, getUtilizationPct, getRiskLevel, getCardRiskMetrics, type CreditCard } from "@/services/credit-cards";
 import { cn } from "@/lib/utils";
-import { CreditCard as CreditCardIcon, Plus, AlertTriangle, CheckCircle, Shield } from "lucide-react";
+import { CreditCard as CreditCardIcon, Plus, AlertTriangle, CheckCircle, RefreshCw, Banknote, List } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
 
 function formatMoney(n: number) {
@@ -31,7 +33,7 @@ function CardEditor({ card, isNew, open, onOpenChange }: { card: CreditCard | nu
     creditLimit: card?.creditLimit?.toString() || '', currentBalance: card?.currentBalance?.toString() || '0',
     closingDay: card?.closingDay?.toString() || '', dueDay: card?.dueDay?.toString() || '',
     minimumPayment: card?.minimumPayment?.toString() || '', noInterestPayment: card?.noInterestPayment?.toString() || '',
-    apr: card?.apr?.toString() || '',
+    apr: card?.apr?.toString() || '', notes: card?.notes || '',
   });
 
   const handleSave = async () => {
@@ -41,7 +43,7 @@ function CardEditor({ card, isNew, open, onOpenChange }: { card: CreditCard | nu
       closingDay: parseInt(form.closingDay) || undefined, dueDay: parseInt(form.dueDay) || undefined,
       minimumPayment: parseFloat(form.minimumPayment) || undefined,
       noInterestPayment: parseFloat(form.noInterestPayment) || undefined,
-      apr: parseFloat(form.apr) || undefined, active: true,
+      apr: parseFloat(form.apr) || undefined, notes: form.notes || undefined, active: true,
     };
     if (isNew) { await add.mutateAsync(data as any); }
     else if (card) { await update.mutateAsync({ id: card.id, ...data }); }
@@ -60,13 +62,13 @@ function CardEditor({ card, isNew, open, onOpenChange }: { card: CreditCard | nu
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="overflow-y-auto">
-        <SheetHeader><SheetTitle>{isNew ? 'Nueva tarjeta' : 'Editar tarjeta'}</SheetTitle></SheetHeader>
+        <SheetHeader><SheetTitle>{isNew ? 'Nueva tarjeta' : 'Estado actual de la tarjeta'}</SheetTitle></SheetHeader>
         <div className="space-y-4 mt-6">
           <F label="Banco" field="bank" />
           <F label="Nombre" field="name" />
           <F label="Últimos 4 dígitos" field="lastFour" />
           <F label="Límite de crédito" field="creditLimit" type="number" />
-          <F label="Saldo actual" field="currentBalance" type="number" />
+          <F label="Saldo actual (deuda)" field="currentBalance" type="number" />
           <div className="grid grid-cols-2 gap-3">
             <F label="Día de corte" field="closingDay" type="number" />
             <F label="Día de pago" field="dueDay" type="number" />
@@ -76,8 +78,12 @@ function CardEditor({ card, isNew, open, onOpenChange }: { card: CreditCard | nu
             <F label="Pago sin intereses" field="noInterestPayment" type="number" />
           </div>
           <F label="Tasa anual (%)" field="apr" type="number" />
+          <div>
+            <Label className="text-xs text-muted-foreground">Notas</Label>
+            <Textarea value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} className="mt-1" placeholder="Notas sobre esta tarjeta..." />
+          </div>
           <Button onClick={handleSave} className="w-full" disabled={!form.bank || !form.name}>
-            {isNew ? 'Agregar tarjeta' : 'Guardar cambios'}
+            {isNew ? 'Agregar tarjeta' : 'Guardar estado'}
           </Button>
           {!isNew && (
             <Button variant="outline" onClick={handleDelete} className="w-full text-destructive hover:text-destructive">
@@ -91,6 +97,7 @@ function CardEditor({ card, isNew, open, onOpenChange }: { card: CreditCard | nu
 }
 
 export default function Cards() {
+  const navigate = useNavigate();
   const { data: cards = [], isLoading } = useCreditCards();
   const [editCard, setEditCard] = useState<CreditCard | null>(null);
   const [isNew, setIsNew] = useState(false);
@@ -109,7 +116,7 @@ export default function Cards() {
         <motion.div {...fadeIn} className="flex items-start justify-between">
           <div>
             <h2 className="text-2xl font-bold text-foreground">Tarjetas</h2>
-            <p className="text-muted-foreground text-sm mt-1">Control y semáforo de riesgo</p>
+            <p className="text-muted-foreground text-sm mt-1">Centro operativo y semáforo de riesgo</p>
           </div>
           <button onClick={() => { setEditCard(null); setIsNew(true); }} className="flex items-center gap-1.5 text-sm text-primary font-medium hover:opacity-80 transition-opacity">
             <Plus className="w-4 h-4" /> Agregar
@@ -119,11 +126,11 @@ export default function Cards() {
         {/* Summary */}
         <motion.div {...fadeIn} transition={{ delay: 0.05 }} className="grid grid-cols-3 gap-3">
           <div className="card-calm p-4">
-            <p className="text-label">Deuda total</p>
+            <p className="text-label">Deuda tarjetas</p>
             <p className="text-xl font-bold text-danger mt-1">{formatMoney(totalDebt)}</p>
           </div>
           <div className="card-calm p-4">
-            <p className="text-label">Disponible</p>
+            <p className="text-label">Crédito disponible</p>
             <p className="text-xl font-bold text-primary mt-1">{formatMoney(totalAvailable)}</p>
           </div>
           <div className="card-calm p-4">
@@ -156,11 +163,11 @@ export default function Cards() {
         ) : (
           <div className="space-y-3">
             {sorted.map((card, i) => {
-              const util = getUtilizationPct(card);
-              const risk = getRiskLevel(card);
+              const metrics = getCardRiskMetrics(card);
+              const risk = metrics.riskLevel;
               return (
                 <motion.div key={card.id} {...fadeIn} transition={{ delay: 0.15 + i * 0.05 }}>
-                  <button onClick={() => { setEditCard(card); setIsNew(false); }} className="card-calm w-full p-5 text-left hover:bg-accent/30 transition-colors">
+                  <div className="card-calm w-full p-5 text-left">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
@@ -185,7 +192,7 @@ export default function Cards() {
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Disponible</p>
-                        <p className="font-semibold text-foreground">{formatMoney(card.creditLimit - Math.abs(card.currentBalance))}</p>
+                        <p className="font-semibold text-foreground">{formatMoney(metrics.availableCredit)}</p>
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Límite</p>
@@ -194,16 +201,30 @@ export default function Cards() {
                     </div>
 
                     <div className="h-2 bg-secondary rounded-full overflow-hidden mb-3">
-                      <div className={cn("h-full rounded-full transition-all", util >= 60 ? "bg-danger" : util >= 40 ? "bg-warning" : "bg-primary")} style={{ width: `${Math.min(util, 100)}%` }} />
+                      <div className={cn("h-full rounded-full transition-all", metrics.utilization >= 60 ? "bg-danger" : metrics.utilization >= 40 ? "bg-warning" : "bg-primary")} style={{ width: `${Math.min(metrics.utilization, 100)}%` }} />
                     </div>
 
-                    <div className="flex gap-4 text-xs text-muted-foreground">
-                      {card.closingDay && <span>Corte: día {card.closingDay}</span>}
-                      {card.dueDay && <span>Pago: día {card.dueDay}</span>}
-                      {card.minimumPayment && <span>Mínimo: {formatMoney(card.minimumPayment)}</span>}
-                      {card.noInterestPayment && <span>Sin intereses: {formatMoney(card.noInterestPayment)}</span>}
+                    {/* Payment info block */}
+                    <div className="flex gap-4 text-xs text-muted-foreground mb-3 flex-wrap">
+                      {card.closingDay && <span>Corte: día {card.closingDay}{metrics.daysToClosing != null && ` (${metrics.daysToClosing}d)`}</span>}
+                      {card.dueDay && <span>Pago: día {card.dueDay}{metrics.daysToDue != null && ` (${metrics.daysToDue}d)`}</span>}
+                      {card.minimumPayment != null && <span>Mínimo: {formatMoney(card.minimumPayment)}</span>}
+                      {card.noInterestPayment != null && <span>Sin intereses: {formatMoney(card.noInterestPayment)}</span>}
+                      {card.apr != null && <span>Tasa: {card.apr}%</span>}
                     </div>
-                  </button>
+
+                    {/* CTAs */}
+                    <div className="flex gap-2 pt-2 border-t border-border">
+                      <button onClick={() => { setEditCard(card); setIsNew(false); }}
+                        className="flex items-center gap-1.5 text-xs text-primary font-medium hover:opacity-80 px-3 py-1.5 rounded-lg bg-primary/5 transition-colors">
+                        <RefreshCw className="w-3 h-3" /> Actualizar estado
+                      </button>
+                      <button onClick={() => navigate('/transactions')}
+                        className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium hover:text-foreground px-3 py-1.5 rounded-lg bg-secondary transition-colors">
+                        <List className="w-3 h-3" /> Ver movimientos
+                      </button>
+                    </div>
+                  </div>
                 </motion.div>
               );
             })}

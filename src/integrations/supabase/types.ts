@@ -255,6 +255,7 @@ export type Database = {
           minimum_payment: number | null
           name: string
           no_interest_payment: number | null
+          notes: string | null
           statement_balance: number | null
           updated_at: string
           user_id: string
@@ -275,6 +276,7 @@ export type Database = {
           minimum_payment?: number | null
           name: string
           no_interest_payment?: number | null
+          notes?: string | null
           statement_balance?: number | null
           updated_at?: string
           user_id: string
@@ -295,6 +297,7 @@ export type Database = {
           minimum_payment?: number | null
           name?: string
           no_interest_payment?: number | null
+          notes?: string | null
           statement_balance?: number | null
           updated_at?: string
           user_id?: string
@@ -880,7 +883,25 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      debt_obligations_view: {
+        Row: {
+          active: boolean | null
+          apr: number | null
+          available_credit: number | null
+          creditor: string | null
+          current_balance: number | null
+          due_day: number | null
+          minimum_payment: number | null
+          name: string | null
+          no_interest_payment: number | null
+          obligation_id: string | null
+          obligation_source: string | null
+          payoff_priority: number | null
+          user_id: string | null
+          utilization_pct: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       [_ in never]: never
