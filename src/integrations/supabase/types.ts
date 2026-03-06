@@ -16,6 +16,8 @@ export type Database = {
     Tables: {
       accounts: {
         Row: {
+          active: boolean
+          available_balance: number | null
           balance: number
           balance_updated_at: string | null
           created_at: string
@@ -23,6 +25,8 @@ export type Database = {
           currency: string
           cutoff_date: number | null
           id: string
+          institution: string | null
+          last_statement_balance: number | null
           name: string
           payment_date: number | null
           type: string
@@ -30,6 +34,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          active?: boolean
+          available_balance?: number | null
           balance?: number
           balance_updated_at?: string | null
           created_at?: string
@@ -37,6 +43,8 @@ export type Database = {
           currency?: string
           cutoff_date?: number | null
           id?: string
+          institution?: string | null
+          last_statement_balance?: number | null
           name: string
           payment_date?: number | null
           type: string
@@ -44,6 +52,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          active?: boolean
+          available_balance?: number | null
           balance?: number
           balance_updated_at?: string | null
           created_at?: string
@@ -51,10 +61,96 @@ export type Database = {
           currency?: string
           cutoff_date?: number | null
           id?: string
+          institution?: string | null
+          last_statement_balance?: number | null
           name?: string
           payment_date?: number | null
           type?: string
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      assistant_memory: {
+        Row: {
+          created_at: string
+          entity_id: string | null
+          entity_type: string | null
+          id: string
+          memory_type: string
+          salience_score: number | null
+          summary: string
+          tags: string[] | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          memory_type?: string
+          salience_score?: number | null
+          summary: string
+          tags?: string[] | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          memory_type?: string
+          salience_score?: number | null
+          summary?: string
+          tags?: string[] | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      attachments: {
+        Row: {
+          created_at: string
+          file_url: string
+          id: string
+          linked_entity_id: string | null
+          linked_entity_type: string | null
+          mime_type: string | null
+          ocr_confidence: number | null
+          ocr_status: string
+          parse_status: string
+          parsed_text: string | null
+          source: string
+          uploaded_via: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          file_url: string
+          id?: string
+          linked_entity_id?: string | null
+          linked_entity_type?: string | null
+          mime_type?: string | null
+          ocr_confidence?: number | null
+          ocr_status?: string
+          parse_status?: string
+          parsed_text?: string | null
+          source?: string
+          uploaded_via?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          file_url?: string
+          id?: string
+          linked_entity_id?: string | null
+          linked_entity_type?: string | null
+          mime_type?: string | null
+          ocr_confidence?: number | null
+          ocr_status?: string
+          parse_status?: string
+          parsed_text?: string | null
+          source?: string
+          uploaded_via?: string | null
           user_id?: string
         }
         Relationships: []
@@ -95,35 +191,228 @@ export type Database = {
       categories: {
         Row: {
           active: boolean
+          color: string | null
           created_at: string
+          default_budget: number | null
           icon: string
           id: string
           name: string
+          parent_id: string | null
           sort_order: number
           type: string
           user_id: string
         }
         Insert: {
           active?: boolean
+          color?: string | null
           created_at?: string
+          default_budget?: number | null
           icon?: string
           id?: string
           name: string
+          parent_id?: string | null
           sort_order?: number
           type?: string
           user_id: string
         }
         Update: {
           active?: boolean
+          color?: string | null
           created_at?: string
+          default_budget?: number | null
           icon?: string
           id?: string
           name?: string
+          parent_id?: string | null
           sort_order?: number
           type?: string
           user_id?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: "categories_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      credit_cards: {
+        Row: {
+          active: boolean
+          apr: number | null
+          available_credit: number | null
+          bank: string
+          closing_day: number | null
+          created_at: string
+          credit_limit: number
+          current_balance: number
+          due_day: number | null
+          id: string
+          last_four: string | null
+          linked_account_id: string | null
+          minimum_payment: number | null
+          name: string
+          no_interest_payment: number | null
+          statement_balance: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          apr?: number | null
+          available_credit?: number | null
+          bank: string
+          closing_day?: number | null
+          created_at?: string
+          credit_limit?: number
+          current_balance?: number
+          due_day?: number | null
+          id?: string
+          last_four?: string | null
+          linked_account_id?: string | null
+          minimum_payment?: number | null
+          name: string
+          no_interest_payment?: number | null
+          statement_balance?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          apr?: number | null
+          available_credit?: number | null
+          bank?: string
+          closing_day?: number | null
+          created_at?: string
+          credit_limit?: number
+          current_balance?: number
+          due_day?: number | null
+          id?: string
+          last_four?: string | null
+          linked_account_id?: string | null
+          minimum_payment?: number | null
+          name?: string
+          no_interest_payment?: number | null
+          statement_balance?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_cards_linked_account_id_fkey"
+            columns: ["linked_account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      debts: {
+        Row: {
+          active: boolean
+          apr: number | null
+          created_at: string
+          creditor: string | null
+          current_balance: number
+          due_day: number | null
+          id: string
+          minimum_payment: number | null
+          name: string
+          notes: string | null
+          original_amount: number
+          payoff_priority: number | null
+          strategy_tag: string
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          apr?: number | null
+          created_at?: string
+          creditor?: string | null
+          current_balance?: number
+          due_day?: number | null
+          id?: string
+          minimum_payment?: number | null
+          name: string
+          notes?: string | null
+          original_amount?: number
+          payoff_priority?: number | null
+          strategy_tag?: string
+          type?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          apr?: number | null
+          created_at?: string
+          creditor?: string | null
+          current_balance?: number
+          due_day?: number | null
+          id?: string
+          minimum_payment?: number | null
+          name?: string
+          notes?: string | null
+          original_amount?: number
+          payoff_priority?: number | null
+          strategy_tag?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
         Relationships: []
+      }
+      income_allocations: {
+        Row: {
+          amount: number
+          created_at: string
+          destination_account_id: string | null
+          id: string
+          income_transaction_id: string | null
+          jar_type: string
+          percentage: number
+          user_id: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          destination_account_id?: string | null
+          id?: string
+          income_transaction_id?: string | null
+          jar_type: string
+          percentage?: number
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          destination_account_id?: string | null
+          id?: string
+          income_transaction_id?: string | null
+          jar_type?: string
+          percentage?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "income_allocations_destination_account_id_fkey"
+            columns: ["destination_account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "income_allocations_income_transaction_id_fkey"
+            columns: ["income_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       investments: {
         Row: {
@@ -158,6 +447,48 @@ export type Database = {
         }
         Relationships: []
       }
+      jar_settings: {
+        Row: {
+          created_at: string
+          education: number
+          effective_from: string
+          financial_freedom: number
+          give: number
+          id: string
+          long_term_savings: number
+          necessities: number
+          play: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          education?: number
+          effective_from?: string
+          financial_freedom?: number
+          give?: number
+          id?: string
+          long_term_savings?: number
+          necessities?: number
+          play?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          education?: number
+          effective_from?: string
+          financial_freedom?: number
+          give?: number
+          id?: string
+          long_term_savings?: number
+          necessities?: number
+          play?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -178,6 +509,102 @@ export type Database = {
           demo_seeded?: boolean
           display_name?: string | null
           id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      receivables: {
+        Row: {
+          amount_paid: number
+          amount_total: number
+          concept: string | null
+          created_at: string
+          debtor_name: string
+          due_date: string | null
+          id: string
+          last_reminder_at: string | null
+          notes: string | null
+          reminder_enabled: boolean
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount_paid?: number
+          amount_total?: number
+          concept?: string | null
+          created_at?: string
+          debtor_name: string
+          due_date?: string | null
+          id?: string
+          last_reminder_at?: string | null
+          notes?: string | null
+          reminder_enabled?: boolean
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount_paid?: number
+          amount_total?: number
+          concept?: string | null
+          created_at?: string
+          debtor_name?: string
+          due_date?: string | null
+          id?: string
+          last_reminder_at?: string | null
+          notes?: string | null
+          reminder_enabled?: boolean
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      reminders: {
+        Row: {
+          channel: string
+          created_at: string
+          enabled: boolean
+          id: string
+          last_sent_at: string | null
+          next_run_at: string | null
+          reminder_type: string
+          schedule_config: Json | null
+          schedule_type: string
+          target_entity_id: string | null
+          target_entity_type: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          channel?: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          last_sent_at?: string | null
+          next_run_at?: string | null
+          reminder_type: string
+          schedule_config?: Json | null
+          schedule_type?: string
+          target_entity_id?: string | null
+          target_entity_type?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          channel?: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          last_sent_at?: string | null
+          next_run_at?: string | null
+          reminder_type?: string
+          schedule_config?: Json | null
+          schedule_type?: string
+          target_entity_id?: string | null
+          target_entity_type?: string | null
+          updated_at?: string
           user_id?: string
         }
         Relationships: []
@@ -315,11 +742,18 @@ export type Database = {
           category: string
           category_icon: string
           created_at: string
+          credit_card_id: string | null
           currency: string
           date: string
+          debt_id: string | null
+          description: string | null
+          duplicate_of_transaction_id: string | null
           id: string
           merchant: string | null
           notes: string | null
+          parse_confidence: number | null
+          receivable_id: string | null
+          source: string
           status: string
           to_account: string | null
           type: string
@@ -331,11 +765,18 @@ export type Database = {
           category: string
           category_icon?: string
           created_at?: string
+          credit_card_id?: string | null
           currency?: string
           date?: string
+          debt_id?: string | null
+          description?: string | null
+          duplicate_of_transaction_id?: string | null
           id?: string
           merchant?: string | null
           notes?: string | null
+          parse_confidence?: number | null
+          receivable_id?: string | null
+          source?: string
           status?: string
           to_account?: string | null
           type: string
@@ -347,15 +788,93 @@ export type Database = {
           category?: string
           category_icon?: string
           created_at?: string
+          credit_card_id?: string | null
           currency?: string
           date?: string
+          debt_id?: string | null
+          description?: string | null
+          duplicate_of_transaction_id?: string | null
           id?: string
           merchant?: string | null
           notes?: string | null
+          parse_confidence?: number | null
+          receivable_id?: string | null
+          source?: string
           status?: string
           to_account?: string | null
           type?: string
           user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_transactions_credit_card"
+            columns: ["credit_card_id"]
+            isOneToOne: false
+            referencedRelation: "credit_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_transactions_debt"
+            columns: ["debt_id"]
+            isOneToOne: false
+            referencedRelation: "debts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_transactions_duplicate"
+            columns: ["duplicate_of_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_transactions_receivable"
+            columns: ["receivable_id"]
+            isOneToOne: false
+            referencedRelation: "receivables"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_financial_preferences: {
+        Row: {
+          created_at: string
+          debt_strategy_default: string | null
+          id: string
+          monthly_income_goal: number | null
+          motivational_tone: string | null
+          preferred_currency: string
+          telegram_daily_digest_enabled: boolean
+          telegram_digest_hour: number | null
+          updated_at: string
+          user_id: string
+          week_start_day: number | null
+        }
+        Insert: {
+          created_at?: string
+          debt_strategy_default?: string | null
+          id?: string
+          monthly_income_goal?: number | null
+          motivational_tone?: string | null
+          preferred_currency?: string
+          telegram_daily_digest_enabled?: boolean
+          telegram_digest_hour?: number | null
+          updated_at?: string
+          user_id: string
+          week_start_day?: number | null
+        }
+        Update: {
+          created_at?: string
+          debt_strategy_default?: string | null
+          id?: string
+          monthly_income_goal?: number | null
+          motivational_tone?: string | null
+          preferred_currency?: string
+          telegram_daily_digest_enabled?: boolean
+          telegram_digest_hour?: number | null
+          updated_at?: string
+          user_id?: string
+          week_start_day?: number | null
         }
         Relationships: []
       }
