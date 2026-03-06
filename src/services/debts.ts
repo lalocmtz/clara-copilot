@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
+import { useCreditCards, type CreditCard } from "@/services/credit-cards";
 
 export interface Debt {
   id: string;
@@ -16,6 +17,22 @@ export interface Debt {
   strategyTag: 'avalanche' | 'snowball' | 'manual';
   payoffPriority?: number;
   notes?: string;
+  active: boolean;
+}
+
+/** Unified obligation for strategy engine — combines credit cards + debts */
+export interface DebtObligation {
+  obligationId: string;
+  source: 'credit_card' | 'debt';
+  name: string;
+  creditor?: string;
+  currentBalance: number;
+  apr: number;
+  minimumPayment: number;
+  dueDay?: number;
+  utilization?: number;
+  noInterestPayment?: number;
+  payoffPriority?: number;
   active: boolean;
 }
 
@@ -103,26 +120,66 @@ export function useDebtMutations() {
   return { add, update, remove };
 }
 
+/** Combines credit cards + debts into a unified list for strategy */
+export function useUnifiedObligations(): { data: DebtObligation[]; isLoading: boolean } {
+  const { data: debts = [], isLoading: debtsLoading } = useDebts();
+  const { data: creditCards = [], isLoading: cardsLoading } = useCreditCards();
+
+  const data: DebtObligation[] = [
+    ...creditCards
+      .filter(c => c.active && Math.abs(c.currentBalance) > 0)
+      .map((c): DebtObligation => ({
+        obligationId: c.id,
+        source: 'credit_card',
+        name: c.name,
+        creditor: c.bank,
+        currentBalance: Math.abs(c.currentBalance),
+        apr: c.apr || 0,
+        minimumPayment: c.minimumPayment || 0,
+        dueDay: c.dueDay,
+        utilization: c.creditLimit > 0 ? Math.round((Math.abs(c.currentBalance) / c.creditLimit) * 100) : 0,
+        noInterestPayment: c.noInterestPayment,
+        active: c.active,
+      })),
+    ...debts
+      .filter(d => d.active && d.currentBalance > 0)
+      .map((d): DebtObligation => ({
+        obligationId: d.id,
+        source: 'debt',
+        name: d.name,
+        creditor: d.creditor,
+        currentBalance: d.currentBalance,
+        apr: d.apr,
+        minimumPayment: d.minimumPayment,
+        dueDay: d.dueDay,
+        payoffPriority: d.payoffPriority,
+        active: d.active,
+      })),
+  ];
+
+  return { data, isLoading: debtsLoading || cardsLoading };
+}
+
 // Snowball: order by balance ascending
-export function snowballOrder(debts: Debt[]): Debt[] {
-  return [...debts].filter(d => d.active && d.currentBalance > 0).sort((a, b) => a.currentBalance - b.currentBalance);
+export function snowballOrder(obligations: DebtObligation[]): DebtObligation[] {
+  return [...obligations].filter(d => d.active && d.currentBalance > 0).sort((a, b) => a.currentBalance - b.currentBalance);
 }
 
 // Avalanche: order by APR descending
-export function avalancheOrder(debts: Debt[]): Debt[] {
-  return [...debts].filter(d => d.active && d.currentBalance > 0).sort((a, b) => b.apr - a.apr);
+export function avalancheOrder(obligations: DebtObligation[]): DebtObligation[] {
+  return [...obligations].filter(d => d.active && d.currentBalance > 0).sort((a, b) => b.apr - a.apr);
 }
 
-export function calculatePayoff(debt: Debt, monthlyPayment: number): { months: number; totalInterest: number } {
-  if (monthlyPayment <= 0 || debt.currentBalance <= 0) return { months: 0, totalInterest: 0 };
-  const monthlyRate = debt.apr / 100 / 12;
-  let balance = debt.currentBalance;
+export function calculatePayoff(balance: number, apr: number, monthlyPayment: number): { months: number; totalInterest: number } {
+  if (monthlyPayment <= 0 || balance <= 0) return { months: 0, totalInterest: 0 };
+  const monthlyRate = apr / 100 / 12;
+  let bal = balance;
   let months = 0;
   let totalInterest = 0;
-  while (balance > 0 && months < 600) {
-    const interest = balance * monthlyRate;
+  while (bal > 0 && months < 600) {
+    const interest = bal * monthlyRate;
     totalInterest += interest;
-    balance = balance + interest - monthlyPayment;
+    bal = bal + interest - monthlyPayment;
     months++;
     if (monthlyPayment <= interest) return { months: Infinity, totalInterest: Infinity };
   }
