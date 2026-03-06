@@ -11,6 +11,7 @@ import { useDebts } from "@/services/debts";
 import { useReceivables } from "@/services/receivables";
 import { useJarSettings, distributeIncome, JAR_LABELS, JAR_ICONS, type JarType } from "@/services/allocations";
 import { useFinancialPreferences } from "@/services/preferences";
+import { useFinancialPosition } from "@/services/financial-position";
 import { CalendarClock, ChevronLeft, ChevronRight, AlertTriangle, ArrowRight, CreditCard, Target, UserCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Transaction } from "@/lib/mock-data";
@@ -42,12 +43,12 @@ export default function Index() {
   const navigate = useNavigate();
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [editTx, setEditTx] = useState<Transaction | null>(null);
-  const { transactions, accounts, budgets, subscriptions, investments } = useAppData();
+  const { transactions, budgets, subscriptions } = useAppData();
   const { data: creditCards = [] } = useCreditCards();
-  const { data: debts = [] } = useDebts();
   const { data: receivables = [] } = useReceivables();
   const { data: jarSettings } = useJarSettings();
   const { data: prefs } = useFinancialPreferences();
+  const pos = useFinancialPosition();
 
   const [selectedMonth, setSelectedMonth] = useState(() => getMonthKey(new Date()));
 
@@ -63,14 +64,6 @@ export default function Index() {
     income: monthTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0),
     expenses: monthTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0),
   }), [monthTxs]);
-
-  // Capital
-  const liquidez = accounts.filter(a => a.type === 'checking' || a.type === 'savings').reduce((s, a) => s + a.balance, 0);
-  const deudaTarjetas = Math.abs(accounts.filter(a => a.type === 'credit').reduce((s, a) => s + a.balance, 0));
-  const ccDebt = creditCards.filter(c => c.active).reduce((s, c) => s + Math.abs(c.currentBalance), 0);
-  const debtTotal = debts.filter(d => d.active).reduce((s, d) => s + d.currentBalance, 0);
-  const invested = investments.reduce((s, i) => s + i.current_value, 0);
-  const capitalTotal = liquidez + invested - deudaTarjetas - debtTotal - ccDebt;
 
   // Budget
   const monthBudgets = budgets.filter(b => b.period === selectedMonth);
@@ -88,15 +81,10 @@ export default function Index() {
   const incomeGoal = prefs?.monthlyIncomeGoal || 0;
   const incomeProgress = incomeGoal > 0 ? Math.round((monthlyTotals.income / incomeGoal) * 100) : 0;
 
-  // Upcoming payments
+  // Upcoming payments (only from credit_cards, not accounts.credit)
   const now = new Date();
   const in14 = new Date(now); in14.setDate(in14.getDate() + 14);
   const upcomingPayments: { name: string; amount: number; date: string }[] = [];
-  accounts.filter(a => a.type === 'credit' && a.paymentDate).forEach(acc => {
-    const payDate = new Date(now.getFullYear(), now.getMonth(), acc.paymentDate!);
-    if (payDate < now) payDate.setMonth(payDate.getMonth() + 1);
-    if (payDate >= now && payDate <= in14) upcomingPayments.push({ name: acc.name, amount: Math.abs(acc.balance), date: payDate.toISOString().slice(0, 10) });
-  });
   creditCards.filter(c => c.active && c.dueDay).forEach(cc => {
     const payDate = new Date(now.getFullYear(), now.getMonth(), cc.dueDay!);
     if (payDate < now) payDate.setMonth(payDate.getMonth() + 1);
@@ -160,15 +148,20 @@ export default function Index() {
 
         {/* ===== ZONE 1: ESTADO GENERAL ===== */}
 
-        {/* Capital total */}
+        {/* Financial position — clear labels */}
         <motion.div {...fadeIn} transition={{ delay: 0.05 }} className="card-calm p-6">
-          <p className="text-label mb-1">Capital total</p>
-          <p className="text-4xl font-bold text-foreground tracking-tight">{formatMoney(capitalTotal)}</p>
+          <p className="text-label mb-1">Liquidez real</p>
+          <p className="text-xs text-muted-foreground mb-2">Lo que sí tienes hoy</p>
+          <p className="text-4xl font-bold text-foreground tracking-tight">{formatMoney(pos.realLiquidity)}</p>
           <div className="grid grid-cols-2 gap-x-6 gap-y-2 mt-4 text-sm">
-            <div><span className="text-muted-foreground">Líquido: </span><span className="text-foreground font-medium">{formatMoney(liquidez)}</span></div>
-            <div><span className="text-muted-foreground">Invertido: </span><span className="text-foreground font-medium">{formatMoney(invested)}</span></div>
-            {(deudaTarjetas + ccDebt) > 0 && <div><span className="text-muted-foreground">Tarjetas: </span><span className="text-danger font-medium">–{formatMoney(deudaTarjetas + ccDebt)}</span></div>}
-            {debtTotal > 0 && <div><span className="text-muted-foreground">Deudas: </span><span className="text-danger font-medium">–{formatMoney(debtTotal)}</span></div>}
+            <div><span className="text-muted-foreground">Invertido: </span><span className="text-foreground font-medium">{formatMoney(pos.investmentTotal)}</span></div>
+            <div><span className="text-muted-foreground">Crédito disp.: </span><span className="text-primary font-medium">{formatMoney(pos.totalCreditAvailable)}</span></div>
+            {pos.totalCardDebt > 0 && <div><span className="text-muted-foreground">Deuda tarjetas: </span><span className="text-danger font-medium">–{formatMoney(pos.totalCardDebt)}</span></div>}
+            {pos.totalNonCardDebt > 0 && <div><span className="text-muted-foreground">Otras deudas: </span><span className="text-danger font-medium">–{formatMoney(pos.totalNonCardDebt)}</span></div>}
+          </div>
+          <div className="mt-3 pt-3 border-t border-border flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">Capacidad inmediata</span>
+            <span className="font-semibold text-foreground">{formatMoney(pos.immediateCapacity)}</span>
           </div>
         </motion.div>
 
@@ -324,37 +317,32 @@ export default function Index() {
           </motion.div>
         )}
 
-        {/* Recent Transactions */}
-        <motion.div {...fadeIn} transition={{ delay: 0.26 }} className="card-calm p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-medium text-foreground">Últimos movimientos</h3>
-            <button onClick={() => navigate('/transactions')} className="text-xs text-primary hover:underline">Ver todos</button>
-          </div>
-          {recentTransactions.length > 0 ? (
+        {/* Recent transactions */}
+        {recentTransactions.length > 0 && (
+          <motion.div {...fadeIn} transition={{ delay: 0.26 }} className="card-calm p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-medium text-foreground">Últimos movimientos</h3>
+              <button onClick={() => navigate('/transactions')} className="text-xs text-primary hover:underline">Ver todos</button>
+            </div>
             <div className="space-y-2">
               {recentTransactions.map(tx => (
-                <button key={tx.id} onClick={() => setEditTx(tx)} className="flex items-center justify-between py-1 w-full text-left hover:bg-accent/30 rounded-lg px-2 -mx-2 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <span className="text-lg">{tx.categoryIcon}</span>
-                    <div>
-                      <p className="text-sm text-foreground">{tx.merchant || tx.notes || tx.category}</p>
-                      <p className="text-xs text-muted-foreground">{tx.date}</p>
-                    </div>
+                <button key={tx.id} onClick={() => setEditTx(tx)} className="w-full flex items-center gap-3 hover:bg-accent/30 transition-colors rounded-lg p-2 -mx-2">
+                  <span className="text-lg">{tx.categoryIcon}</span>
+                  <div className="flex-1 min-w-0 text-left">
+                    <p className="text-sm text-foreground truncate">{tx.merchant || tx.category}</p>
+                    <p className="text-xs text-muted-foreground">{formatDate(tx.date)} · {tx.account}</p>
                   </div>
-                  <span className={cn("text-sm font-medium", tx.type === 'income' ? "text-success" : tx.type === 'transfer' ? "text-warning" : "text-foreground")}>
-                    {tx.type === 'expense' ? '–' : tx.type === 'transfer' ? '↔' : '+'} {formatMoney(tx.amount)}
+                  <span className={cn("text-sm font-semibold", tx.type === 'income' ? "text-success" : "text-foreground")}>
+                    {tx.type === 'income' ? '+' : '–'}{formatMoney(tx.amount)}
                   </span>
                 </button>
               ))}
             </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">Sin movimientos en este mes.</p>
-          )}
-        </motion.div>
+          </motion.div>
+        )}
       </div>
-
       <QuickAddTransaction open={quickAddOpen} onOpenChange={setQuickAddOpen} />
-      <TransactionEditor transaction={editTx} open={!!editTx} onOpenChange={(o) => !o && setEditTx(null)} />
+      <TransactionEditor transaction={editTx} open={!!editTx} onOpenChange={() => setEditTx(null)} />
     </Layout>
   );
 }

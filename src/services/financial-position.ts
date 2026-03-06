@@ -23,10 +23,9 @@ export function useFinancialPosition(): FinancialPosition {
   const { data: debts = [] } = useDebts();
 
   return useMemo(() => {
-    // Only real money accounts (exclude credit type from accounts)
-    const liquidAccounts = accounts.filter(
-      a => a.type === 'checking' || a.type === 'savings' || a.type === 'cash' || a.type === 'debit' || a.type === 'wallet'
-    );
+    // Only real money accounts (exclude credit and debt types)
+    const liquidTypes = ['checking', 'savings'];
+    const liquidAccounts = accounts.filter(a => liquidTypes.includes(a.type));
     const realLiquidity = liquidAccounts.reduce((s, a) => s + a.balance, 0);
     const savingsTotal = accounts.filter(a => a.type === 'savings').reduce((s, a) => s + a.balance, 0);
     const investmentTotal = investments.reduce((s, i) => s + i.current_value, 0);
