@@ -28,7 +28,7 @@ function DebtEditor({ debt, isNew, open, onOpenChange }: { debt: Debt | null; is
     originalAmount: debt?.originalAmount?.toString() || '', currentBalance: debt?.currentBalance?.toString() || '',
     apr: debt?.apr?.toString() || '0', minimumPayment: debt?.minimumPayment?.toString() || '',
     dueDay: debt?.dueDay?.toString() || '', type: debt?.type || 'other',
-    strategyTag: debt?.strategyTag || 'manual', notes: debt?.notes || '',
+    strategyTag: (debt?.strategyTag || 'manual') as 'avalanche' | 'snowball' | 'manual', notes: debt?.notes || '',
   });
 
   const handleSave = async () => {

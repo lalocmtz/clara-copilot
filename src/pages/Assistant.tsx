@@ -2,6 +2,7 @@ import { useState } from "react";
 import Layout from "@/components/Layout";
 import TelegramLink from "@/components/TelegramLink";
 import { useFinancialPreferences, useFinancialPreferencesMutations } from "@/services/preferences";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { Bot, Bell, Settings, MessageSquare, Shield, Zap } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
@@ -143,7 +144,11 @@ export default function Assistant() {
           </div>
         </motion.div>
       </div>
-      <TelegramLink open={telegramOpen} onOpenChange={setTelegramOpen} />
+      <Dialog open={telegramOpen} onOpenChange={setTelegramOpen}>
+        <DialogContent className="max-w-md">
+          <TelegramLink />
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 }

@@ -30,7 +30,7 @@ function ReceivableEditor({ item, isNew, open, onOpenChange }: { item: Receivabl
   const [form, setForm] = useState({
     debtorName: item?.debtorName || '', concept: item?.concept || '',
     amountTotal: item?.amountTotal?.toString() || '', amountPaid: item?.amountPaid?.toString() || '0',
-    dueDate: item?.dueDate || '', status: item?.status || 'pending',
+    dueDate: item?.dueDate || '', status: (item?.status || 'pending') as Receivable['status'],
     reminderEnabled: item?.reminderEnabled || false, notes: item?.notes || '',
   });
 
