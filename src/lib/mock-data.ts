@@ -67,7 +67,6 @@ export interface Investment {
 export const accounts: Account[] = [
   { id: '1', name: 'BBVA Débito', type: 'checking', balance: 45200, currency: 'MXN' },
   { id: '2', name: 'Nu Ahorro', type: 'savings', balance: 18500, currency: 'MXN' },
-  { id: '3', name: 'AMEX', type: 'credit', balance: -12800, currency: 'MXN', creditLimit: 50000, cutoffDate: 15, paymentDate: 5 },
 ];
 
 export const categories = [
