@@ -60,7 +60,7 @@ function ReceivableEditor({ item, isNew, open, onOpenChange }: { item: Receivabl
           <div><Label className="text-xs text-muted-foreground">Fecha límite</Label><Input type="date" value={form.dueDate} onChange={e => setForm(p => ({ ...p, dueDate: e.target.value }))} className="mt-1" /></div>
           <div>
             <Label className="text-xs text-muted-foreground">Estado</Label>
-            <Select value={form.status} onValueChange={v => setForm(p => ({ ...p, status: v }))}>
+            <Select value={form.status} onValueChange={v => setForm(p => ({ ...p, status: v as Receivable['status'] }))}>
               <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {Object.entries(statusConfig).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}

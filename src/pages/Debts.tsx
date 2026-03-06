@@ -69,7 +69,7 @@ function DebtEditor({ debt, isNew, open, onOpenChange }: { debt: Debt | null; is
           </div>
           <div>
             <Label className="text-xs text-muted-foreground">Estrategia</Label>
-            <Select value={form.strategyTag} onValueChange={v => setForm(p => ({ ...p, strategyTag: v }))}>
+            <Select value={form.strategyTag} onValueChange={v => setForm(p => ({ ...p, strategyTag: v as 'avalanche' | 'snowball' | 'manual' }))}>
               <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="avalanche">Avalancha (mayor interés primero)</SelectItem>
