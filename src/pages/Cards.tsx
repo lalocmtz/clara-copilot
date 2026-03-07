@@ -52,10 +52,10 @@ function CardEditor({ card, isNew, open, onOpenChange }: { card: CreditCard | nu
 
   const handleDelete = async () => { if (card) { await remove.mutateAsync(card.id); onOpenChange(false); } };
 
-  const F = ({ label, field, type = 'text' }: { label: string; field: string; type?: string }) => (
-    <div>
+  const field = (label: string, key: keyof typeof form, type = 'text') => (
+    <div key={key}>
       <Label className="text-xs text-muted-foreground">{label}</Label>
-      <Input type={type} value={(form as any)[field]} onChange={e => setForm(p => ({ ...p, [field]: e.target.value }))} className="mt-1" />
+      <Input type={type} value={form[key]} onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))} className="mt-1" />
     </div>
   );
 
@@ -64,20 +64,20 @@ function CardEditor({ card, isNew, open, onOpenChange }: { card: CreditCard | nu
       <SheetContent className="overflow-y-auto">
         <SheetHeader><SheetTitle>{isNew ? 'Nueva tarjeta' : 'Estado actual de la tarjeta'}</SheetTitle></SheetHeader>
         <div className="space-y-4 mt-6">
-          <F label="Banco" field="bank" />
-          <F label="Nombre" field="name" />
-          <F label="Últimos 4 dígitos" field="lastFour" />
-          <F label="Límite de crédito" field="creditLimit" type="number" />
-          <F label="Saldo actual (deuda)" field="currentBalance" type="number" />
+          {field("Banco", "bank")}
+          {field("Nombre", "name")}
+          {field("Últimos 4 dígitos", "lastFour")}
+          {field("Límite de crédito", "creditLimit", "number")}
+          {field("Saldo actual (deuda)", "currentBalance", "number")}
           <div className="grid grid-cols-2 gap-3">
-            <F label="Día de corte" field="closingDay" type="number" />
-            <F label="Día de pago" field="dueDay" type="number" />
+            {field("Día de corte", "closingDay", "number")}
+            {field("Día de pago", "dueDay", "number")}
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <F label="Pago mínimo" field="minimumPayment" type="number" />
-            <F label="Pago sin intereses" field="noInterestPayment" type="number" />
+            {field("Pago mínimo", "minimumPayment", "number")}
+            {field("Pago sin intereses", "noInterestPayment", "number")}
           </div>
-          <F label="Tasa anual (%)" field="apr" type="number" />
+          {field("Tasa anual (%)", "apr", "number")}
           <div>
             <Label className="text-xs text-muted-foreground">Notas</Label>
             <Textarea value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} className="mt-1" placeholder="Notas sobre esta tarjeta..." />
