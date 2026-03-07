@@ -36,6 +36,8 @@ export default function Subscriptions() {
 
   const digital = subscriptions.filter(s => (s.subType || 'digital') === 'digital');
   const fixed = subscriptions.filter(s => s.subType === 'fixed');
+  const digitalTotal = digital.reduce((s, sub) => s + monthlyEquivalent(sub), 0);
+  const fixedTotal = fixed.reduce((s, sub) => s + monthlyEquivalent(sub), 0);
 
   const togglePaid = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
