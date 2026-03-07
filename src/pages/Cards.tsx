@@ -231,7 +231,7 @@ export default function Cards() {
           </div>
         )}
       </div>
-      <CardEditor card={editCard} isNew={isNew} open={!!editCard || isNew} onOpenChange={(o) => { if (!o) { setEditCard(null); setIsNew(false); } }} />
+      <CardEditor key={editCard?.id ?? (isNew ? 'new' : 'closed')} card={editCard} isNew={isNew} open={!!editCard || isNew} onOpenChange={(o) => { if (!o) { setEditCard(null); setIsNew(false); } }} />
     </Layout>
   );
 }
