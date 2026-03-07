@@ -2,8 +2,9 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Layout from "@/components/Layout";
 import { useCreditCards, useCreditCardMutations, getUtilizationPct, getRiskLevel, getCardRiskMetrics, type CreditCard } from "@/services/credit-cards";
+import { calculatePayoff } from "@/services/debts";
 import { cn } from "@/lib/utils";
-import { CreditCard as CreditCardIcon, Plus, AlertTriangle, CheckCircle, RefreshCw, Banknote, List } from "lucide-react";
+import { CreditCard as CreditCardIcon, Plus, AlertTriangle, CheckCircle, RefreshCw, List, Zap, ArrowDownRight } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -101,6 +102,7 @@ export default function Cards() {
   const { data: cards = [], isLoading } = useCreditCards();
   const [editCard, setEditCard] = useState<CreditCard | null>(null);
   const [isNew, setIsNew] = useState(false);
+  const [strategy, setStrategy] = useState<'avalanche' | 'snowball'>('snowball');
 
   const activeCards = cards.filter(c => c.active);
   const totalDebt = activeCards.reduce((s, c) => s + Math.abs(c.currentBalance), 0);
@@ -229,6 +231,72 @@ export default function Cards() {
               );
             })}
           </div>
+        )}
+        {/* Payoff Strategy */}
+        {activeCards.filter(c => Math.abs(c.currentBalance) > 0).length > 0 && (
+          <motion.div {...fadeIn} transition={{ delay: 0.25 }} className="space-y-4">
+            <div>
+              <h3 className="text-lg font-bold text-foreground">Estrategia de pago</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">Ordena tus tarjetas para liquidarlas más rápido</p>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setStrategy('snowball')}
+                className={cn("flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all",
+                  strategy === 'snowball' ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:bg-accent")}>
+                <ArrowDownRight className="w-4 h-4" /> Bola de nieve
+              </button>
+              <button onClick={() => setStrategy('avalanche')}
+                className={cn("flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all",
+                  strategy === 'avalanche' ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:bg-accent")}>
+                <Zap className="w-4 h-4" /> Avalancha
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {strategy === 'snowball'
+                ? 'Paga primero la tarjeta con menor saldo → ganas momentum liquidando rápido.'
+                : 'Paga primero la tarjeta con mayor tasa → ahorras más en intereses.'}
+            </p>
+            <div className="space-y-3">
+              {[...activeCards]
+                .filter(c => Math.abs(c.currentBalance) > 0)
+                .sort((a, b) => strategy === 'snowball'
+                  ? Math.abs(a.currentBalance) - Math.abs(b.currentBalance)
+                  : (b.apr || 0) - (a.apr || 0)
+                )
+                .map((card, i) => {
+                  const balance = Math.abs(card.currentBalance);
+                  const payment = card.noInterestPayment || card.minimumPayment || 0;
+                  const payoff = calculatePayoff(balance, card.apr || 0, payment);
+                  const metrics = getCardRiskMetrics(card);
+                  return (
+                    <div key={card.id} className={cn("card-calm p-4", i === 0 && "ring-2 ring-primary/30")}>
+                      {i === 0 && <p className="text-xs font-medium text-primary mb-2">⚡ Prioridad #1</p>}
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-muted-foreground w-5">#{i + 1}</span>
+                          <div>
+                            <p className="text-sm font-semibold text-foreground">{card.name}</p>
+                            <p className="text-xs text-muted-foreground">{card.bank}</p>
+                          </div>
+                        </div>
+                        <p className="text-lg font-bold text-danger">{formatMoney(balance)}</p>
+                      </div>
+                      <div className="h-2 bg-secondary rounded-full overflow-hidden mb-2">
+                        <div className={cn("h-full rounded-full", metrics.utilization >= 60 ? "bg-danger" : metrics.utilization >= 40 ? "bg-warning" : "bg-primary")}
+                          style={{ width: `${Math.min(metrics.utilization, 100)}%` }} />
+                      </div>
+                      <div className="flex gap-4 text-xs text-muted-foreground flex-wrap">
+                        <span>Tasa: {card.apr || 0}%</span>
+                        {card.minimumPayment != null && <span>Mínimo: {formatMoney(card.minimumPayment)}</span>}
+                        {card.noInterestPayment != null && <span>Sin intereses: {formatMoney(card.noInterestPayment)}</span>}
+                        {payoff.months > 0 && payoff.months < Infinity && <span className="text-primary font-medium">~{payoff.months} meses</span>}
+                        {payoff.totalInterest > 0 && payoff.totalInterest < Infinity && <span>Intereses: {formatMoney(payoff.totalInterest)}</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          </motion.div>
         )}
       </div>
       <CardEditor key={editCard?.id ?? (isNew ? 'new' : 'closed')} card={editCard} isNew={isNew} open={!!editCard || isNew} onOpenChange={(o) => { if (!o) { setEditCard(null); setIsNew(false); } }} />
