@@ -102,6 +102,7 @@ export default function Cards() {
   const { data: cards = [], isLoading } = useCreditCards();
   const [editCard, setEditCard] = useState<CreditCard | null>(null);
   const [isNew, setIsNew] = useState(false);
+  const [strategy, setStrategy] = useState<'avalanche' | 'snowball'>('snowball');
 
   const activeCards = cards.filter(c => c.active);
   const totalDebt = activeCards.reduce((s, c) => s + Math.abs(c.currentBalance), 0);
