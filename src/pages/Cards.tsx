@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Layout from "@/components/Layout";
 import { useCreditCards, useCreditCardMutations, getUtilizationPct, getRiskLevel, getCardRiskMetrics, type CreditCard } from "@/services/credit-cards";
+import { calculatePayoff } from "@/services/debts";
 import { cn } from "@/lib/utils";
 import { CreditCard as CreditCardIcon, Plus, AlertTriangle, CheckCircle, RefreshCw, List, Zap, ArrowDownRight } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
