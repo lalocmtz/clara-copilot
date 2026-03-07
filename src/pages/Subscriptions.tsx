@@ -116,6 +116,7 @@ export default function Subscriptions() {
               <Monitor className="w-4 h-4 text-primary" />
               <span className="text-sm font-semibold text-foreground">Suscripciones digitales</span>
               <span className="text-xs text-muted-foreground">({digital.length})</span>
+              <span className="text-xs font-medium text-primary ml-auto mr-2">{formatMoney(digitalTotal)}/mes</span>
             </div>
             <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform", digitalOpen && "rotate-180")} />
           </CollapsibleTrigger>
@@ -135,6 +136,7 @@ export default function Subscriptions() {
               <Home className="w-4 h-4 text-primary" />
               <span className="text-sm font-semibold text-foreground">Gastos fijos</span>
               <span className="text-xs text-muted-foreground">({fixed.length})</span>
+              <span className="text-xs font-medium text-primary ml-auto mr-2">{formatMoney(fixedTotal)}/mes</span>
             </div>
             <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform", fixedOpen && "rotate-180")} />
           </CollapsibleTrigger>
