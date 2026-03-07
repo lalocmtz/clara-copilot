@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Layout from "@/components/Layout";
 import { useCreditCards, useCreditCardMutations, getUtilizationPct, getRiskLevel, getCardRiskMetrics, type CreditCard } from "@/services/credit-cards";
 import { cn } from "@/lib/utils";
-import { CreditCard as CreditCardIcon, Plus, AlertTriangle, CheckCircle, RefreshCw, Banknote, List } from "lucide-react";
+import { CreditCard as CreditCardIcon, Plus, AlertTriangle, CheckCircle, RefreshCw, List, Zap, ArrowDownRight } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
