@@ -28,7 +28,7 @@ interface AppContextType {
   categories: Category[];
   loading: boolean;
 
-  addTransaction: (t: Omit<Transaction, "id">, options?: { skipBalanceUpdate?: boolean }) => void;
+  addTransaction: (t: Omit<Transaction, "id"> & { creditCardId?: string }, options?: { skipBalanceUpdate?: boolean }) => void;
   updateTransaction: (id: string, t: Partial<Transaction>) => void;
   deleteTransaction: (id: string) => void;
 
@@ -237,13 +237,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // Credit card query cache will be invalidated by react-query; no local state to update here
   }, []);
 
-  const addTransaction = useCallback(async (t: Omit<Transaction, "id">, options?: { skipBalanceUpdate?: boolean }) => {
+  const addTransaction = useCallback(async (t: Omit<Transaction, "id"> & { creditCardId?: string }, options?: { skipBalanceUpdate?: boolean }) => {
     if (!user) return;
     const insertData: any = {
       user_id: user.id, type: t.type, amount: t.amount, currency: t.currency, date: t.date,
       category: t.category, category_icon: t.categoryIcon, account: t.account,
       notes: t.notes ?? null, merchant: t.merchant ?? null,
       status: t.status ?? 'confirmed',
+      credit_card_id: t.creditCardId ?? null,
     };
     if (t.type === 'transfer' && t.toAccount) insertData.to_account = t.toAccount;
     const { data, error } = await supabase.from("transactions").insert(insertData).select().single();
@@ -259,13 +260,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (t.type === 'transfer' && t.toAccount) {
           await updateAccountBalance(t.account, -t.amount);
           await updateAccountBalance(t.toAccount, t.amount);
+        } else if (t.creditCardId) {
+          // Route to credit_cards table: expenses increase balance, payments decrease it
+          const delta = t.type === 'income' ? -t.amount : t.amount;
+          await updateCreditCardBalance(t.creditCardId, delta);
         } else {
           const delta = t.type === 'income' ? t.amount : -t.amount;
           await updateAccountBalance(t.account, delta);
         }
       }
     }
-  }, [user, updateAccountBalance]);
+  }, [user, updateAccountBalance, updateCreditCardBalance]);
 
   const updateTransaction = useCallback(async (id: string, t: Partial<Transaction>) => {
     const oldTx = transactions.find(tx => tx.id === id);
