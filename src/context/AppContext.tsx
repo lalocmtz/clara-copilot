@@ -236,8 +236,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const updateCreditCardBalance = useCallback(async (creditCardId: string, delta: number) => {
     await supabase.rpc('increment_credit_card_balance', { p_card_id: creditCardId, p_delta: delta });
-    // Credit card query cache will be invalidated by react-query; no local state to update here
-  }, []);
+    queryClient.invalidateQueries({ queryKey: ["credit_cards"] });
+  }, [queryClient]);
 
   const addTransaction = useCallback(async (t: Omit<Transaction, "id"> & { creditCardId?: string }, options?: { skipBalanceUpdate?: boolean }) => {
     if (!user) return;
