@@ -227,11 +227,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const updateAccountBalance = useCallback(async (accountName: string, delta: number) => {
     const acc = accounts.find(a => a.name === accountName);
-    if (!acc) return;
-    const newBalance = acc.balance + delta;
-    await supabase.from("accounts").update({ balance: newBalance }).eq("id", acc.id);
-    setAccounts(prev => prev.map(a => a.id === acc.id ? { ...a, balance: newBalance } : a));
+    if (!acc || acc.type === 'credit') return; // skip credit-type accounts; they route to credit_cards
+    await supabase.rpc('increment_account_balance', { p_account_id: acc.id, p_delta: delta });
+    setAccounts(prev => prev.map(a => a.id === acc.id ? { ...a, balance: a.balance + delta } : a));
   }, [accounts]);
+
+  const updateCreditCardBalance = useCallback(async (creditCardId: string, delta: number) => {
+    await supabase.rpc('increment_credit_card_balance', { p_card_id: creditCardId, p_delta: delta });
+    // Credit card query cache will be invalidated by react-query; no local state to update here
+  }, []);
 
   const addTransaction = useCallback(async (t: Omit<Transaction, "id">, options?: { skipBalanceUpdate?: boolean }) => {
     if (!user) return;
