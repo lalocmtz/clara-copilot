@@ -1,44 +1,73 @@
 
 
-# Clara: Evolución a sistema financiero personal
+# Fix: Transactions not updating account/card balances
 
-## Estado: ✅ FASE 1 IMPLEMENTADA
+## Root cause
 
-### Cambios realizados:
+There are two bugs working together:
 
-#### Base de datos (9 tablas nuevas + columnas en 3 existentes)
-- **credit_cards**: Tarjetas con límite, utilización, semáforo de riesgo
-- **debts**: Deudas con estrategia snowball/avalanche
-- **receivables**: Cuentas por cobrar con recordatorios
-- **income_allocations** + **jar_settings**: Método T. Harv Eker (6 frascos)
-- **assistant_memory**: Memoria financiera del asistente
-- **reminders**: Recordatorios configurables por Telegram
-- **user_financial_preferences**: Meta de ingresos, tono, estrategia
-- **attachments**: Archivos procesados (OCR-ready)
-- Columnas nuevas en transactions (source, credit_card_id, debt_id, etc.)
-- Columnas nuevas en accounts (institution, available_balance, active)
-- Columnas nuevas en categories (parent_id, color, default_budget)
+1. **Stale closure in `updateAccountBalance`**: The function reads `accounts` from its `useCallback` closure. When called, it may reference an outdated balance, computing `oldBalance + delta` from stale data. If the account isn't found in the stale array, it silently returns without updating anything.
 
-#### Arquitectura de servicios (src/services/)
-- credit-cards.ts, debts.ts, receivables.ts, allocations.ts, preferences.ts
-- React Query hooks para cada dominio
+2. **Credit card transactions go to the wrong table**: QuickAddTransaction shows all accounts (including credit-type entries). When expenses hit a credit card account name, `updateAccountBalance` updates the `accounts` table balance — but the financial position system reads from `credit_cards`. The credit card balances never actually change.
 
-#### Nuevas páginas
-- /cards — Tarjetas con semáforo de riesgo
-- /debts — Deudas con snowball vs avalanche
-- /receivables — Mini CRM de por cobrar
-- /income — Ingresos + frascos Eker + meta mensual
-- /assistant — Centro de control Telegram
+## Plan
 
-#### Navegación actualizada
-- 11 secciones: Panorama, Movimientos, Presupuestos, Ingresos, Deudas, Tarjetas, Cuentas, Por cobrar, Suscripciones, Asistente, Insights
+### 1. Fix `updateAccountBalance` to be atomic (AppContext.tsx)
 
-#### Panorama rediseñado (3 zonas)
-1. Estado general: capital, ingresos/gastos, flujo neto, meta, presupuesto
-2. Focos de riesgo: tarjetas peligrosas, presupuestos pasados, por cobrar
-3. Acciones sugeridas: cards accionables con contexto real
+Replace the current read-from-closure approach with a Supabase RPC that atomically increments the balance:
 
-### Pendiente (Fase 2):
-- Edge functions: budget-status-engine, income-allocation-engine, assistant-reminders
-- Refactor Telegram webhook con clasificación de intención
-- OCR receipts, debt simulator, daily digest
+```sql
+-- New migration: create increment_account_balance function
+CREATE OR REPLACE FUNCTION increment_account_balance(account_id uuid, delta numeric)
+RETURNS void AS $$
+  UPDATE accounts SET balance = balance + delta, balance_updated_at = now()
+  WHERE id = account_id;
+$$ LANGUAGE sql SECURITY DEFINER;
+```
+
+Then `updateAccountBalance` becomes:
+- Call the RPC with the account ID and delta
+- Use `setAccounts(prev => ...)` to apply the same delta locally
+- No more reading stale balance from closure
+
+### 2. Route credit card transactions to `credit_cards` table (AppContext.tsx)
+
+In `addTransaction`, after inserting the transaction:
+- Check if the account name matches a credit card (via a lookup or by accepting a `credit_card_id` parameter)
+- If it's a credit card: call a new `updateCreditCardBalance` function that atomically updates `credit_cards.current_balance`
+- If it's a regular account: call `updateAccountBalance` as before
+
+Add a second RPC for credit cards:
+```sql
+CREATE OR REPLACE FUNCTION increment_credit_card_balance(card_id uuid, delta numeric)
+RETURNS void AS $$
+  UPDATE credit_cards SET current_balance = current_balance + delta, updated_at = now()
+  WHERE id = card_id;
+$$ LANGUAGE sql SECURITY DEFINER;
+```
+
+### 3. Update QuickAddTransaction to pass `credit_card_id`
+
+When user selects an account that is type `credit`, also pass the corresponding `credit_card_id` so the balance update goes to the right table. This requires matching account names to credit cards or showing credit cards separately in the selector.
+
+### 4. Fix existing data for Mar 6-7 transactions
+
+Using the insert tool (data operations):
+- **Hey Banco débito**: Add +18,000 (10,000 nomina + 8,000 servicio de agencia) → balance becomes 25,675
+- **Credit cards**: The credit card balances in `credit_cards` table were likely set manually and are already correct, so we only need to fix the checking account
+
+Transactions from Mar 5 and earlier are excluded per user request.
+
+### 5. Sync `accounts` credit entries with `credit_cards` (cleanup)
+
+The old credit-type accounts in the `accounts` table are now redundant. We won't delete them to preserve history, but `updateAccountBalance` should skip them and route to `credit_cards` instead.
+
+---
+
+## Files changed
+
+- **New migration**: `increment_account_balance` and `increment_credit_card_balance` RPCs
+- **`src/context/AppContext.tsx`**: Rewrite `updateAccountBalance` to use RPC; add `updateCreditCardBalance`; update `addTransaction` to route credit card updates properly
+- **`src/components/QuickAddTransaction.tsx`**: Pass `credit_card_id` when applicable
+- **Data fix**: Update Hey Banco débito balance via insert tool
+
