@@ -6,6 +6,7 @@ import { es } from "date-fns/locale";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { useAppData } from "@/context/AppContext";
+import { useCreditCards } from "@/services/credit-cards";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -17,6 +18,7 @@ type TxType = 'expense' | 'income' | 'transfer';
 
 export default function QuickAddTransaction({ open: controlledOpen, onOpenChange }: Props) {
   const { categories, accounts, addTransaction } = useAppData();
+  const { data: creditCards = [] } = useCreditCards();
   const topAccounts = accounts.slice(0, 3);
 
   const [internalOpen, setInternalOpen] = useState(false);
@@ -59,6 +61,15 @@ export default function QuickAddTransaction({ open: controlledOpen, onOpenChange
     const acc = accounts.find(a => a.id === selectedAccount);
     const toAcc = accounts.find(a => a.id === toAccountId);
 
+    // Find matching credit card if account is credit type
+    const selectedAcc = accounts.find(a => a.id === selectedAccount);
+    let creditCardId: string | undefined;
+    if (selectedAcc?.type === 'credit') {
+      // Match by name (case-insensitive) to find the credit_cards entry
+      const matchedCard = creditCards.find(c => c.name.toLowerCase() === selectedAcc.name.toLowerCase());
+      creditCardId = matchedCard?.id;
+    }
+
     addTransaction({
       type,
       amount: parseFloat(amount),
@@ -69,6 +80,7 @@ export default function QuickAddTransaction({ open: controlledOpen, onOpenChange
       account: acc?.name || '',
       toAccount: type === 'transfer' ? (toAcc?.name || '') : undefined,
       notes: notes || undefined,
+      creditCardId,
     });
     setSaved(true);
     setTimeout(() => { setSaved(false); setOpen(false); setAmount(''); setNotes(''); setDate(new Date()); setType('expense'); }, 1200);
