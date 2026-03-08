@@ -904,7 +904,14 @@ export type Database = {
       }
     }
     Functions: {
-      [_ in never]: never
+      increment_account_balance: {
+        Args: { p_account_id: string; p_delta: number }
+        Returns: undefined
+      }
+      increment_credit_card_balance: {
+        Args: { p_card_id: string; p_delta: number }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

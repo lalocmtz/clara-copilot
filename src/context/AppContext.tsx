@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useMemo, useCallback, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -28,7 +29,7 @@ interface AppContextType {
   categories: Category[];
   loading: boolean;
 
-  addTransaction: (t: Omit<Transaction, "id">, options?: { skipBalanceUpdate?: boolean }) => void;
+  addTransaction: (t: Omit<Transaction, "id"> & { creditCardId?: string }, options?: { skipBalanceUpdate?: boolean }) => void;
   updateTransaction: (id: string, t: Partial<Transaction>) => void;
   deleteTransaction: (id: string) => void;
 
@@ -75,6 +76,7 @@ function calcNextDate(billingDay: number): string {
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
@@ -227,19 +229,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const updateAccountBalance = useCallback(async (accountName: string, delta: number) => {
     const acc = accounts.find(a => a.name === accountName);
-    if (!acc) return;
-    const newBalance = acc.balance + delta;
-    await supabase.from("accounts").update({ balance: newBalance }).eq("id", acc.id);
-    setAccounts(prev => prev.map(a => a.id === acc.id ? { ...a, balance: newBalance } : a));
+    if (!acc || acc.type === 'credit') return; // skip credit-type accounts; they route to credit_cards
+    await supabase.rpc('increment_account_balance', { p_account_id: acc.id, p_delta: delta });
+    setAccounts(prev => prev.map(a => a.id === acc.id ? { ...a, balance: a.balance + delta } : a));
   }, [accounts]);
 
-  const addTransaction = useCallback(async (t: Omit<Transaction, "id">, options?: { skipBalanceUpdate?: boolean }) => {
+  const updateCreditCardBalance = useCallback(async (creditCardId: string, delta: number) => {
+    await supabase.rpc('increment_credit_card_balance', { p_card_id: creditCardId, p_delta: delta });
+    queryClient.invalidateQueries({ queryKey: ["credit_cards"] });
+  }, [queryClient]);
+
+  const addTransaction = useCallback(async (t: Omit<Transaction, "id"> & { creditCardId?: string }, options?: { skipBalanceUpdate?: boolean }) => {
     if (!user) return;
     const insertData: any = {
       user_id: user.id, type: t.type, amount: t.amount, currency: t.currency, date: t.date,
       category: t.category, category_icon: t.categoryIcon, account: t.account,
       notes: t.notes ?? null, merchant: t.merchant ?? null,
       status: t.status ?? 'confirmed',
+      credit_card_id: t.creditCardId ?? null,
     };
     if (t.type === 'transfer' && t.toAccount) insertData.to_account = t.toAccount;
     const { data, error } = await supabase.from("transactions").insert(insertData).select().single();
@@ -255,13 +262,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (t.type === 'transfer' && t.toAccount) {
           await updateAccountBalance(t.account, -t.amount);
           await updateAccountBalance(t.toAccount, t.amount);
+        } else if (t.creditCardId) {
+          // Route to credit_cards table: expenses increase balance, payments decrease it
+          const delta = t.type === 'income' ? -t.amount : t.amount;
+          await updateCreditCardBalance(t.creditCardId, delta);
         } else {
           const delta = t.type === 'income' ? t.amount : -t.amount;
           await updateAccountBalance(t.account, delta);
         }
       }
     }
-  }, [user, updateAccountBalance]);
+  }, [user, updateAccountBalance, updateCreditCardBalance]);
 
   const updateTransaction = useCallback(async (id: string, t: Partial<Transaction>) => {
     const oldTx = transactions.find(tx => tx.id === id);
