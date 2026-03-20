@@ -33,7 +33,7 @@ const PIE_COLORS = [
 ];
 
 export default function Budgets() {
-  const { budgets, categories, updateBudget, addBudget, deleteBudget, refetchData } = useAppData();
+  const { budgets, categories, transactions, updateBudget, addBudget, deleteBudget, refetchData } = useAppData();
 
   const currentPeriod = new Date().toISOString().slice(0, 7);
   const [selectedPeriod, setSelectedPeriod] = useState(currentPeriod);
