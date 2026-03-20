@@ -136,7 +136,7 @@ export default function Cards() {
           </div>
           <div className="card-calm p-4">
             <p className="text-label">Crédito disponible</p>
-            <p className="text-xl font-bold text-primary mt-1">{formatMoney(totalAvailable)}</p>
+            <p className={cn("text-xl font-bold mt-1", totalAvailable >= 0 ? "text-primary" : "text-danger")}>{formatMoney(totalAvailable, true)}</p>
           </div>
           <div className="card-calm p-4">
             <p className="text-label">Utilización</p>
