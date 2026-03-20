@@ -224,7 +224,7 @@ export default function Cards() {
                         className="flex items-center gap-1.5 text-xs text-primary font-medium hover:opacity-80 px-3 py-1.5 rounded-lg bg-primary/5 transition-colors">
                         <RefreshCw className="w-3 h-3" /> Actualizar estado
                       </button>
-                      <button onClick={() => navigate('/transactions')}
+                      <button onClick={() => navigate(`/transactions?account=${encodeURIComponent(card.name)}`)}
                         className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium hover:text-foreground px-3 py-1.5 rounded-lg bg-secondary transition-colors">
                         <List className="w-3 h-3" /> Ver movimientos
                       </button>
