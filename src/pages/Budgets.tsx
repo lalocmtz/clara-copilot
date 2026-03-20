@@ -55,6 +55,17 @@ export default function Budgets() {
   const [addingCategoryId, setAddingCategoryId] = useState<string | null>(null);
   const [newBudgetAmount, setNewBudgetAmount] = useState('');
   const [confirmDeleteBudgetId, setConfirmDeleteBudgetId] = useState<string | null>(null);
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+
+  const getTransactionsForBudget = (b: typeof currentBudgets[0]) => {
+    const matchingCat = categories.find(c => c.name === b.category);
+    const iconPrefix = matchingCat ? matchingCat.icon + ' ' : '';
+    return transactions.filter(t =>
+      t.type === 'expense' &&
+      t.date.startsWith(selectedPeriod) &&
+      (t.category === b.category || t.category === iconPrefix + b.category)
+    ).sort((a, b2) => b2.date.localeCompare(a.date));
+  };
 
   const startEditBudget = (id: string, current: number) => {
     setEditingBudgetId(id);
