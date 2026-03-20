@@ -43,7 +43,7 @@ export default function Index() {
   const navigate = useNavigate();
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [editTx, setEditTx] = useState<Transaction | null>(null);
-  const { transactions, budgets, subscriptions } = useAppData();
+  const { transactions, budgets, subscriptions, accounts } = useAppData();
   const { data: creditCards = [] } = useCreditCards();
   const { data: receivables = [] } = useReceivables();
   const { data: jarSettings } = useJarSettings();
