@@ -12,7 +12,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
 
-function formatMoney(n: number) {
+function formatMoney(n: number, keepSign = false) {
+  if (keepSign && n < 0) {
+    return '–' + new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 0 }).format(Math.abs(n));
+  }
   return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 0 }).format(Math.abs(n));
 }
 
@@ -63,7 +66,7 @@ function CardEditor({ card, isNew, open, onOpenChange }: { card: CreditCard | nu
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="overflow-y-auto">
-        <SheetHeader><SheetTitle>{isNew ? 'Nueva tarjeta' : 'Estado actual de la tarjeta'}</SheetTitle></SheetHeader>
+        <SheetHeader><SheetTitle>{isNew ? 'Nueva tarjeta' : 'Editar tarjeta'}</SheetTitle></SheetHeader>
         <div className="space-y-4 mt-6">
           {field("Banco", "bank")}
           {field("Nombre", "name")}
@@ -133,7 +136,7 @@ export default function Cards() {
           </div>
           <div className="card-calm p-4">
             <p className="text-label">Crédito disponible</p>
-            <p className="text-xl font-bold text-primary mt-1">{formatMoney(totalAvailable)}</p>
+            <p className={cn("text-xl font-bold mt-1", totalAvailable >= 0 ? "text-primary" : "text-danger")}>{formatMoney(totalAvailable, true)}</p>
           </div>
           <div className="card-calm p-4">
             <p className="text-label">Utilización</p>
@@ -194,7 +197,7 @@ export default function Cards() {
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Disponible</p>
-                        <p className="font-semibold text-foreground">{formatMoney(metrics.availableCredit)}</p>
+                        <p className={cn("font-semibold", metrics.availableCredit >= 0 ? "text-foreground" : "text-danger")}>{formatMoney(metrics.availableCredit, true)}</p>
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Límite</p>
@@ -221,7 +224,7 @@ export default function Cards() {
                         className="flex items-center gap-1.5 text-xs text-primary font-medium hover:opacity-80 px-3 py-1.5 rounded-lg bg-primary/5 transition-colors">
                         <RefreshCw className="w-3 h-3" /> Actualizar estado
                       </button>
-                      <button onClick={() => navigate('/transactions')}
+                      <button onClick={() => navigate(`/transactions?account=${encodeURIComponent(card.name)}`)}
                         className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium hover:text-foreground px-3 py-1.5 rounded-lg bg-secondary transition-colors">
                         <List className="w-3 h-3" /> Ver movimientos
                       </button>

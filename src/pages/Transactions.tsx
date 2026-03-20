@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import Layout from "@/components/Layout";
 import QuickAddTransaction from "@/components/QuickAddTransaction";
 import TransactionEditor from "@/components/TransactionEditor";
@@ -31,9 +32,10 @@ type StatusFilter = 'all' | 'confirmed' | 'pending';
 
 export default function Transactions() {
   const { transactions, accounts } = useAppData();
+  const [searchParams] = useSearchParams();
   const [filter, setFilter] = useState<FilterType>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [accountFilter, setAccountFilter] = useState<string>('all');
+  const [accountFilter, setAccountFilter] = useState<string>(searchParams.get('account') || 'all');
   const [editTx, setEditTx] = useState<Transaction | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
