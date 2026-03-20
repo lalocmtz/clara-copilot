@@ -154,7 +154,7 @@ export default function Index() {
           <p className="text-xs text-muted-foreground mb-2">Lo que sí tienes hoy</p>
           <p className="text-4xl font-bold text-foreground tracking-tight">{formatMoney(pos.realLiquidity)}</p>
           {(() => {
-            const liquidAccounts = accounts.filter(a => (a.type === 'checking' || a.type === 'savings') && a.active);
+            const liquidAccounts = accounts.filter(a => a.type === 'checking' || a.type === 'savings');
             if (liquidAccounts.length <= 1) return null;
             return (
               <div className="mt-3 space-y-1.5">
