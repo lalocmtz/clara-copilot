@@ -12,7 +12,7 @@ import { useReceivables } from "@/services/receivables";
 import { useJarSettings, distributeIncome, JAR_LABELS, JAR_ICONS, type JarType } from "@/services/allocations";
 import { useFinancialPreferences } from "@/services/preferences";
 import { useFinancialPosition } from "@/services/financial-position";
-import { CalendarClock, ChevronLeft, ChevronRight, AlertTriangle, ArrowRight, CreditCard, Target, UserCheck } from "lucide-react";
+import { CalendarClock, ChevronLeft, ChevronRight, AlertTriangle, ArrowRight, CreditCard, Target, UserCheck, Landmark, PiggyBank } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Transaction } from "@/lib/mock-data";
 
