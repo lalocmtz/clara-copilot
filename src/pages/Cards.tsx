@@ -66,7 +66,7 @@ function CardEditor({ card, isNew, open, onOpenChange }: { card: CreditCard | nu
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="overflow-y-auto">
-        <SheetHeader><SheetTitle>{isNew ? 'Nueva tarjeta' : 'Estado actual de la tarjeta'}</SheetTitle></SheetHeader>
+        <SheetHeader><SheetTitle>{isNew ? 'Nueva tarjeta' : 'Editar tarjeta'}</SheetTitle></SheetHeader>
         <div className="space-y-4 mt-6">
           {field("Banco", "bank")}
           {field("Nombre", "name")}
