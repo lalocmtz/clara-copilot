@@ -282,7 +282,7 @@ export default function Budgets() {
                           <div key={t.id} className="flex items-center justify-between px-6 py-3 text-sm">
                             <div className="flex items-center gap-4">
                               <span className="text-muted-foreground w-20">{new Date(t.date + 'T12:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}</span>
-                              <span className="text-foreground">{t.description || t.merchant || 'Sin descripción'}</span>
+                              <span className="text-foreground">{t.merchant || t.notes || 'Sin descripción'}</span>
                             </div>
                             <div className="flex items-center gap-4">
                               <span className="text-muted-foreground text-xs">{t.account}</span>
