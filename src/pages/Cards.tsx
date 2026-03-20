@@ -197,7 +197,7 @@ export default function Cards() {
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Disponible</p>
-                        <p className="font-semibold text-foreground">{formatMoney(metrics.availableCredit)}</p>
+                        <p className={cn("font-semibold", metrics.availableCredit >= 0 ? "text-foreground" : "text-danger")}>{formatMoney(metrics.availableCredit, true)}</p>
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Límite</p>
