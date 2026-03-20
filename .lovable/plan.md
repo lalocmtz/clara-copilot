@@ -1,21 +1,80 @@
 
 
-# Plan: Desglose de liquidez real en el dashboard
+# Plan: Arreglar bot Telegram + Chat in-app
 
-## Qué se hará
+## Problema actual del bot de Telegram
 
-En la tarjeta de "Liquidez real" del dashboard (`Index.tsx`), agregar un mini-desglose debajo del monto total que liste cada cuenta líquida (checking/savings) con su nombre, tipo y saldo individual. Así el usuario ve de dónde viene su liquidez.
+El bot solo maneja 3 casos: `/ayuda`, `/vincular`, `/resumen`, y parsing de transacciones. Los comandos `/presupuestos`, `/deudas`, `/tarjetas`, `/porcobrar`, `/frascos` que se listan en la UI **no existen en el código**. Preguntas abiertas como "Cuánto he gastado en transporte?" caen al parser de AI que solo extrae transacciones, no responde consultas.
 
 ## Cambios
 
-### `src/pages/Index.tsx`
+### 1. Reescribir `supabase/functions/telegram-bot/index.ts`
 
-1. Importar `accounts` desde `useAppData()` (ya se usa en el componente).
-2. Filtrar cuentas líquidas: `accounts.filter(a => a.type === 'checking' || a.type === 'savings')`.
-3. Dentro de la tarjeta de "Liquidez real" (líneas ~152-166), después del monto grande y antes de la grid de métricas, insertar una lista compacta:
-   - Por cada cuenta: nombre, tipo (Débito/Ahorro), y saldo formateado.
-   - Estilo sutil con `text-sm`, separador `border-b`, iconos de `Landmark`/`PiggyBank`.
-4. Solo se muestra si hay más de una cuenta (si hay una sola, el total ya es suficiente).
+Expandir el bot con dos mejoras grandes:
 
-No se requieren cambios en backend ni en otros archivos.
+**a) Implementar los 5 comandos faltantes:**
+- `/presupuestos` — consulta budgets del mes actual, muestra categoría, gastado vs presupuestado, % usado
+- `/deudas` — consulta tabla `debts` activas, muestra nombre, saldo, pago mínimo
+- `/tarjetas` — consulta `credit_cards` activas, muestra nombre, saldo, límite, disponible
+- `/porcobrar` — consulta `receivables` pendientes, muestra deudor, monto, fecha
+- `/frascos` — consulta `jar_settings` + `income_allocations` del mes
+
+Cada comando hace queries directas a Supabase con el `userId` del usuario vinculado.
+
+**b) Agregar modo "consulta inteligente":**
+Cuando el mensaje no es un comando ni se puede parsear como transacción, enviar el mensaje al AI con un system prompt diferente que incluya contexto financiero del usuario (resumen del mes, presupuestos, cuentas) y le pida **responder la pregunta** en lugar de extraer una transacción. Esto permite preguntas como "cuánto gasté en transporte", "cómo van mis presupuestos", etc.
+
+Lógica de decisión del AI:
+- El system prompt pide al AI decidir si el mensaje es una transacción o una consulta
+- Si es transacción: devuelve JSON con `{action: "transaction", ...datos}`
+- Si es consulta: devuelve JSON con `{action: "query", response: "..."}`
+- Si no entiende: `{action: "error", response: "..."}`
+
+### 2. Crear edge function `supabase/functions/chat/index.ts`
+
+Edge function para el chat in-app. Recibe mensajes del usuario + historial, consulta datos financieros del usuario autenticado, y responde usando Lovable AI con streaming SSE.
+
+- Valida JWT del usuario con `getClaims()`
+- Carga contexto financiero: transacciones del mes, presupuestos, cuentas, tarjetas, deudas
+- System prompt en español como "Clara, tu CFO personal"
+- Streaming response para UX fluida
+- Manejo de errores 429/402
+
+### 3. Crear componente `src/components/ChatAssistant.tsx`
+
+Chat UI integrado en la página de Asistente:
+- Input de texto + botón enviar
+- Lista de mensajes (usuario/asistente) con scroll automático
+- Rendering de markdown en respuestas del AI (react-markdown)
+- Streaming token-by-token
+- Historial en memoria (no persiste entre sesiones)
+- Indicador de "Clara está escribiendo..."
+
+### 4. Actualizar `src/pages/Assistant.tsx`
+
+- Reemplazar la sección de "Capacidades" estática con el componente ChatAssistant como elemento principal
+- Mantener la configuración de Telegram y recordatorios debajo
+- El chat ocupa la parte superior de la página
+
+### 5. Actualizar `supabase/config.toml`
+
+Agregar la nueva función:
+```toml
+[functions.chat]
+verify_jwt = false
+```
+
+## Dependencias
+
+- Instalar `react-markdown` para renderizar respuestas del chat
+
+## Archivos a crear/modificar
+
+| Archivo | Acción |
+|---------|--------|
+| `supabase/functions/telegram-bot/index.ts` | Reescribir: agregar 5 comandos + modo consulta AI |
+| `supabase/functions/chat/index.ts` | Crear: edge function para chat in-app |
+| `src/components/ChatAssistant.tsx` | Crear: componente de chat con streaming |
+| `src/pages/Assistant.tsx` | Modificar: integrar ChatAssistant |
+| `supabase/config.toml` | Agregar función chat |
 
