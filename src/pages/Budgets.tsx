@@ -229,40 +229,71 @@ export default function Budgets() {
               );
             }
 
+            const isExpanded = expandedCategory === b.id;
+            const categoryTxs = isExpanded ? getTransactionsForBudget(b) : [];
+
             return (
-              <div key={b.id} className="grid grid-cols-2 sm:grid-cols-6 gap-2 sm:gap-4 p-4 border-b border-border last:border-0 items-center">
-                <div className="flex items-center gap-2">
-                  <span>{b.categoryIcon}</span>
-                  <span className="text-sm font-medium text-foreground">{b.category}</span>
-                </div>
-                <div className="text-right">
-                  {isEditing ? (
-                    <div className="flex items-center justify-end gap-1">
-                      <span className="text-sm text-muted-foreground">$</span>
-                      <input type="number" value={tempBudgetAmount} onChange={e => setTempBudgetAmount(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && saveBudgetEdit()} autoFocus
-                        className="w-20 text-sm text-right bg-transparent border-b-2 border-primary outline-none text-foreground" />
-                      <button onClick={saveBudgetEdit} className="p-1 text-primary"><Check className="w-3.5 h-3.5" /></button>
-                      <button onClick={() => setEditingBudgetId(null)} className="p-1 text-muted-foreground"><X className="w-3.5 h-3.5" /></button>
+              <div key={b.id} className="border-b border-border last:border-0">
+                <div
+                  className="grid grid-cols-2 sm:grid-cols-6 gap-2 sm:gap-4 p-4 items-center cursor-pointer hover:bg-accent/50 transition-colors"
+                  onClick={() => setExpandedCategory(isExpanded ? null : b.id)}
+                >
+                  <div className="flex items-center gap-2">
+                    <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform duration-200", isExpanded && "rotate-180")} />
+                    <span>{b.categoryIcon}</span>
+                    <span className="text-sm font-medium text-foreground">{b.category}</span>
+                  </div>
+                  <div className="text-right" onClick={e => e.stopPropagation()}>
+                    {isEditing ? (
+                      <div className="flex items-center justify-end gap-1">
+                        <span className="text-sm text-muted-foreground">$</span>
+                        <input type="number" value={tempBudgetAmount} onChange={e => setTempBudgetAmount(e.target.value)}
+                          onKeyDown={e => e.key === 'Enter' && saveBudgetEdit()} autoFocus
+                          className="w-20 text-sm text-right bg-transparent border-b-2 border-primary outline-none text-foreground" />
+                        <button onClick={saveBudgetEdit} className="p-1 text-primary"><Check className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => setEditingBudgetId(null)} className="p-1 text-muted-foreground"><X className="w-3.5 h-3.5" /></button>
+                      </div>
+                    ) : (
+                      <button onClick={() => startEditBudget(b.id, b.budgeted)} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                        {formatMoney(b.budgeted)}
+                      </button>
+                    )}
+                  </div>
+                  <span className="text-sm text-right text-foreground font-medium">{formatMoney(b.spent)}</span>
+                  <span className={cn("text-sm text-right font-medium", isOver ? "text-danger" : "text-success")}>{formatMoney(remaining)}</span>
+                  <div className="col-span-1">
+                    <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                      <div className={cn("h-full rounded-full transition-all duration-500", isOver ? "bg-danger" : pct > 70 ? "bg-warning" : "bg-primary")} style={{ width: `${pct}%` }} />
                     </div>
-                  ) : (
-                    <button onClick={() => startEditBudget(b.id, b.budgeted)} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                      {formatMoney(b.budgeted)}
+                  </div>
+                  <div className="flex justify-end" onClick={e => e.stopPropagation()}>
+                    <button onClick={() => setConfirmDeleteBudgetId(b.id)} className="p-1.5 rounded-lg hover:bg-accent transition-colors" title="Eliminar presupuesto">
+                      <Trash2 className="w-4 h-4 text-muted-foreground hover:text-destructive" />
                     </button>
-                  )}
-                </div>
-                <span className="text-sm text-right text-foreground font-medium">{formatMoney(b.spent)}</span>
-                <span className={cn("text-sm text-right font-medium", isOver ? "text-danger" : "text-success")}>{formatMoney(remaining)}</span>
-                <div className="col-span-1">
-                  <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                    <div className={cn("h-full rounded-full transition-all duration-500", isOver ? "bg-danger" : pct > 70 ? "bg-warning" : "bg-primary")} style={{ width: `${pct}%` }} />
                   </div>
                 </div>
-                <div className="flex justify-end">
-                  <button onClick={() => setConfirmDeleteBudgetId(b.id)} className="p-1.5 rounded-lg hover:bg-accent transition-colors" title="Eliminar presupuesto">
-                    <Trash2 className="w-4 h-4 text-muted-foreground hover:text-destructive" />
-                  </button>
-                </div>
+                {isExpanded && (
+                  <div className="bg-muted/30 border-t border-border">
+                    {categoryTxs.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">Sin transacciones en este mes</p>
+                    ) : (
+                      <div className="divide-y divide-border">
+                        {categoryTxs.map(t => (
+                          <div key={t.id} className="flex items-center justify-between px-6 py-3 text-sm">
+                            <div className="flex items-center gap-4">
+                              <span className="text-muted-foreground w-20">{new Date(t.date + 'T12:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}</span>
+                              <span className="text-foreground">{t.description || t.merchant || 'Sin descripción'}</span>
+                            </div>
+                            <div className="flex items-center gap-4">
+                              <span className="text-muted-foreground text-xs">{t.account}</span>
+                              <span className="font-medium text-foreground">{formatMoney(t.amount)}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
