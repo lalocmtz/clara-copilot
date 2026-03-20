@@ -1,24 +1,25 @@
 
 
-# Plan: Drill-down de transacciones por categoría en Presupuestos
+# Fix: Tarjetas de crédito — edición, crédito disponible negativo, y filtro de movimientos
 
-## Que se va a hacer
+## 3 problemas a resolver
 
-Al hacer clic en una fila de categoría en la tabla de presupuestos, se expandirá un panel debajo de esa fila mostrando todas las transacciones de esa categoría en el mes seleccionado. Incluirá fecha, comercio/nota, cuenta y monto. Se puede cerrar haciendo clic de nuevo.
+### 1. Crédito disponible incorrecto cuando la tarjeta está sobregirada
+En `getCardRiskMetrics` (credit-cards.ts línea 169): `availableCredit: card.creditLimit - Math.abs(card.currentBalance)` produce valores negativos cuando el saldo supera el límite (ej: límite 8,600 - deuda 11,668 = -3,068). Pero en la UI se muestra con `formatMoney(Math.abs(n))` que siempre muestra positivo sin signo negativo.
 
-## Cambios
+**Fix**: En `Cards.tsx`, mostrar el signo negativo cuando `availableCredit < 0` (ej: "-$3,068"). También ajustar el resumen global de "Crédito disponible" para permitir valores negativos.
 
-### `src/pages/Budgets.tsx`
+### 2. Nombre de tarjeta no editable
+El `CardEditor` ya tiene campo de nombre editable — el título del sheet dice "Estado actual de la tarjeta" pero todos los campos incluyendo banco y nombre son editables. Sin embargo, para hacerlo más claro, cambiar el título a "Editar tarjeta" cuando no es nueva.
 
-1. Agregar estado `expandedCategory: string | null` para trackear qué categoría está expandida.
-2. Obtener `transactions` desde `useAppData()`.
-3. En cada fila de presupuesto, hacer la fila clickeable para toggle `expandedCategory`.
-4. Si la categoría está expandida, renderizar debajo una lista de transacciones filtradas por:
-   - `t.type === 'expense'`
-   - `t.date.startsWith(selectedPeriod)`
-   - `t.category === b.category || t.category === icon + ' ' + b.category` (misma lógica de match que ya existe en AppContext)
-5. Cada transacción muestra: fecha, comercio/nota, cuenta y monto formateado.
-6. Indicador visual (chevron o highlight) para mostrar que la fila es expandible.
+### 3. "Ver movimientos" lleva a todos los movimientos
+Actualmente `navigate('/transactions')` sin filtro. La página de Transactions ya filtra por `accountFilter` (nombre de cuenta).
 
-No se necesitan cambios en backend ni en otros archivos.
+**Fix**: Navegar con query param `?account=NombreTarjeta` y en `Transactions.tsx` leer el query param para pre-seleccionar el filtro de cuenta.
+
+## Archivos a modificar
+
+- **`src/pages/Cards.tsx`**: Mostrar signo negativo en disponible; cambiar título del editor; pasar query param en "Ver movimientos"
+- **`src/pages/Transactions.tsx`**: Leer `?account=` del URL para inicializar `accountFilter`
+- **`src/services/credit-cards.ts`**: Sin cambios (el cálculo ya devuelve negativo correctamente)
 
