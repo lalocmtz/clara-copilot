@@ -1,44 +1,51 @@
 
 
-# Clara: Evolución a sistema financiero personal
+# Fix: Budget spent tracking + month navigation
 
-## Estado: ✅ FASE 1 IMPLEMENTADA
+## Problem
 
-### Cambios realizados:
+1. **Category mismatch**: Budget categories store plain names (`Transporte`), but transaction categories are inconsistent — some have emoji prefix (`🚗 Transporte`), some don't (`Transporte`). The spent calculation in AppContext does `t.category === b.category` which fails for emoji-prefixed transactions.
 
-#### Base de datos (9 tablas nuevas + columnas en 3 existentes)
-- **credit_cards**: Tarjetas con límite, utilización, semáforo de riesgo
-- **debts**: Deudas con estrategia snowball/avalanche
-- **receivables**: Cuentas por cobrar con recordatorios
-- **income_allocations** + **jar_settings**: Método T. Harv Eker (6 frascos)
-- **assistant_memory**: Memoria financiera del asistente
-- **reminders**: Recordatorios configurables por Telegram
-- **user_financial_preferences**: Meta de ingresos, tono, estrategia
-- **attachments**: Archivos procesados (OCR-ready)
-- Columnas nuevas en transactions (source, credit_card_id, debt_id, etc.)
-- Columnas nuevas en accounts (institution, available_balance, active)
-- Columnas nuevas en categories (parent_id, color, default_budget)
+2. **No month navigation**: Budgets page only shows the current month. User can't review past months.
 
-#### Arquitectura de servicios (src/services/)
-- credit-cards.ts, debts.ts, receivables.ts, allocations.ts, preferences.ts
-- React Query hooks para cada dominio
+## Solution
 
-#### Nuevas páginas
-- /cards — Tarjetas con semáforo de riesgo
-- /debts — Deudas con snowball vs avalanche
-- /receivables — Mini CRM de por cobrar
-- /income — Ingresos + frascos Eker + meta mensual
-- /assistant — Centro de control Telegram
+### 1. Fix spent calculation (AppContext.tsx)
 
-#### Navegación actualizada
-- 11 secciones: Panorama, Movimientos, Presupuestos, Ingresos, Deudas, Tarjetas, Cuentas, Por cobrar, Suscripciones, Asistente, Insights
+Update the dynamic spent calculation to match transactions by stripping emoji prefixes, or by matching both the budget category name and `icon + name` pattern:
 
-#### Panorama rediseñado (3 zonas)
-1. Estado general: capital, ingresos/gastos, flujo neto, meta, presupuesto
-2. Focos de riesgo: tarjetas peligrosas, presupuestos pasados, por cobrar
-3. Acciones sugeridas: cards accionables con contexto real
+```typescript
+const budDataWithSpent = budData.map(b => {
+  const matchingCat = catData.find(c => c.name === b.category);
+  const iconPrefix = matchingCat ? matchingCat.icon + ' ' : '';
+  const realSpent = txData
+    .filter(t => t.type === 'expense' && t.date.startsWith(b.period) && 
+      (t.category === b.category || t.category === iconPrefix + b.category))
+    .reduce((sum, t) => sum + t.amount, 0);
+  return { ...b, spent: realSpent };
+});
+```
 
-### Pendiente (Fase 2):
-- Edge functions: budget-status-engine, income-allocation-engine, assistant-reminders
-- Refactor Telegram webhook con clasificación de intención
-- OCR receipts, debt simulator, daily digest
+This handles both formats without requiring a data migration.
+
+### 2. Add month navigation to Budgets page (Budgets.tsx)
+
+Add left/right arrows to navigate between months (like the dashboard already has). Show budgets and their dynamically calculated spent for any selected month, not just the current one.
+
+- Add `selectedMonth` state defaulting to current month
+- Navigation arrows with month/year label
+- Filter budgets by `selectedMonth` instead of hardcoded `currentPeriod`
+- Show historical months' budget performance
+
+### 3. Normalize future transaction categories
+
+In QuickAddTransaction, StatementImporter, and TransactionEditor — ensure transactions always save category as the plain name (without emoji). The icon is already stored separately in `categoryIcon`. This prevents future mismatches.
+
+For existing data, the fuzzy matching in step 1 covers both old and new formats.
+
+## Files changed
+
+- **`src/context/AppContext.tsx`** — Fix category matching logic in spent calculation
+- **`src/pages/Budgets.tsx`** — Add month selector with navigation arrows
+- **`src/components/StatementImporter.tsx`** — Ensure category saves as plain name (if currently saving with emoji)
+
