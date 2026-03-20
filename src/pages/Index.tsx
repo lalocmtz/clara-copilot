@@ -12,7 +12,7 @@ import { useReceivables } from "@/services/receivables";
 import { useJarSettings, distributeIncome, JAR_LABELS, JAR_ICONS, type JarType } from "@/services/allocations";
 import { useFinancialPreferences } from "@/services/preferences";
 import { useFinancialPosition } from "@/services/financial-position";
-import { CalendarClock, ChevronLeft, ChevronRight, AlertTriangle, ArrowRight, CreditCard, Target, UserCheck } from "lucide-react";
+import { CalendarClock, ChevronLeft, ChevronRight, AlertTriangle, ArrowRight, CreditCard, Target, UserCheck, Landmark, PiggyBank } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Transaction } from "@/lib/mock-data";
 
@@ -43,7 +43,7 @@ export default function Index() {
   const navigate = useNavigate();
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [editTx, setEditTx] = useState<Transaction | null>(null);
-  const { transactions, budgets, subscriptions } = useAppData();
+  const { transactions, budgets, subscriptions, accounts } = useAppData();
   const { data: creditCards = [] } = useCreditCards();
   const { data: receivables = [] } = useReceivables();
   const { data: jarSettings } = useJarSettings();
@@ -153,6 +153,24 @@ export default function Index() {
           <p className="text-label mb-1">Liquidez real</p>
           <p className="text-xs text-muted-foreground mb-2">Lo que sí tienes hoy</p>
           <p className="text-4xl font-bold text-foreground tracking-tight">{formatMoney(pos.realLiquidity)}</p>
+          {(() => {
+            const liquidAccounts = accounts.filter(a => a.type === 'checking' || a.type === 'savings');
+            if (liquidAccounts.length <= 1) return null;
+            return (
+              <div className="mt-3 space-y-1.5">
+                {liquidAccounts.map(a => (
+                  <div key={a.id} className="flex items-center justify-between text-sm">
+                    <span className="flex items-center gap-2 text-muted-foreground">
+                      {a.type === 'savings' ? <PiggyBank className="w-3.5 h-3.5" /> : <Landmark className="w-3.5 h-3.5" />}
+                      <span>{a.name}</span>
+                      <span className="text-xs opacity-60">{a.type === 'savings' ? 'Ahorro' : 'Débito'}</span>
+                    </span>
+                    <span className="font-medium text-foreground">{formatMoney(a.balance)}</span>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
           <div className="grid grid-cols-2 gap-x-6 gap-y-2 mt-4 text-sm">
             <div><span className="text-muted-foreground">Invertido: </span><span className="text-foreground font-medium">{formatMoney(pos.investmentTotal)}</span></div>
             <div><span className="text-muted-foreground">Crédito disp.: </span><span className="text-primary font-medium">{formatMoney(pos.totalCreditAvailable)}</span></div>
