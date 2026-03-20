@@ -3,12 +3,23 @@ import Layout from "@/components/Layout";
 import QuickAddTransaction from "@/components/QuickAddTransaction";
 import { useAppData } from "@/context/AppContext";
 import { cn } from "@/lib/utils";
-import { Check, X, Settings, Plus, Trash2 } from "lucide-react";
+import { Check, X, Settings, Plus, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import CategoryManager from "@/components/CategoryManager";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 0 }).format(n);
+}
+
+function shiftMonth(period: string, delta: number): string {
+  const [y, m] = period.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function periodLabel(period: string): string {
+  const [y, m] = period.split('-').map(Number);
+  return new Date(y, m - 1).toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
 }
 
 const PIE_COLORS = [
@@ -24,12 +35,12 @@ const PIE_COLORS = [
 export default function Budgets() {
   const { budgets, categories, updateBudget, addBudget, deleteBudget, refetchData } = useAppData();
 
-  const currentPeriod = new Date().toISOString().slice(0, 7); // YYYY-MM
+  const currentPeriod = new Date().toISOString().slice(0, 7);
+  const [selectedPeriod, setSelectedPeriod] = useState(currentPeriod);
+  const isCurrentMonth = selectedPeriod === currentPeriod;
 
-  // Budgets for current period only
-  const currentBudgets = useMemo(() => budgets.filter(b => b.period === currentPeriod), [budgets, currentPeriod]);
+  const currentBudgets = useMemo(() => budgets.filter(b => b.period === selectedPeriod), [budgets, selectedPeriod]);
 
-  // Categories that have a budget vs those that don't
   const activeCategories = categories.filter(c => c.active);
   const categoriesWithBudget = currentBudgets.map(b => b.category);
   const categoriesWithoutBudget = activeCategories.filter(c => !categoriesWithBudget.includes(c.name));
@@ -66,7 +77,7 @@ export default function Budgets() {
       categoryIcon: cat.icon,
       budgeted: amount,
       spent: 0,
-      period: currentPeriod,
+      period: selectedPeriod,
     });
     refetchData();
     setAddingCategoryId(null);
@@ -77,8 +88,6 @@ export default function Budgets() {
     await deleteBudget(id);
     refetchData();
   };
-
-  const monthName = new Date().toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
 
   // Pie chart data
   const pieData = currentBudgets
@@ -109,14 +118,33 @@ export default function Budgets() {
         <div className="flex items-start justify-between">
           <div>
             <h2 className="text-2xl font-bold text-foreground">Presupuestos</h2>
-            <p className="text-muted-foreground text-sm mt-1 capitalize">{monthName}</p>
           </div>
           <button onClick={() => setCategoryManagerOpen(true)} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
             <Settings className="w-4 h-4" /> Categorías
           </button>
         </div>
 
-        {/* Global budget summary - auto-calculated */}
+        {/* Month navigation */}
+        <div className="flex items-center justify-center gap-4">
+          <button onClick={() => setSelectedPeriod(p => shiftMonth(p, -1))} className="p-2 rounded-lg hover:bg-accent transition-colors">
+            <ChevronLeft className="w-5 h-5 text-muted-foreground" />
+          </button>
+          <button
+            onClick={() => setSelectedPeriod(currentPeriod)}
+            className={cn("text-sm font-medium capitalize min-w-[180px] text-center transition-colors", isCurrentMonth ? "text-primary" : "text-foreground hover:text-primary")}
+          >
+            {periodLabel(selectedPeriod)}
+          </button>
+          <button
+            onClick={() => setSelectedPeriod(p => shiftMonth(p, 1))}
+            disabled={isCurrentMonth}
+            className={cn("p-2 rounded-lg transition-colors", isCurrentMonth ? "opacity-30 cursor-not-allowed" : "hover:bg-accent")}
+          >
+            <ChevronRight className="w-5 h-5 text-muted-foreground" />
+          </button>
+        </div>
+
+        {/* Global budget summary */}
         <div className="card-calm p-5">
           <p className="text-label">Presupuesto mensual total</p>
           <p className="text-2xl font-bold text-foreground mt-1">{formatMoney(totalBudget)}</p>
@@ -165,6 +193,11 @@ export default function Budgets() {
           {currentBudgets.length === 0 && categoriesWithoutBudget.length === 0 && (
             <div className="p-8 text-center text-muted-foreground text-sm">
               No tienes presupuestos configurados. Agrega categorías primero.
+            </div>
+          )}
+          {currentBudgets.length === 0 && categoriesWithoutBudget.length > 0 && (
+            <div className="p-8 text-center text-muted-foreground text-sm">
+              No hay presupuestos para este mes. Asigna montos a tus categorías abajo.
             </div>
           )}
           {currentBudgets.map((b) => {
@@ -224,7 +257,7 @@ export default function Budgets() {
           })}
         </div>
 
-        {/* Categories without budget */}
+        {/* Categories without budget — only show for current/future months */}
         {categoriesWithoutBudget.length > 0 && (
           <div className="card-calm overflow-hidden">
             <div className="p-4 border-b border-border">

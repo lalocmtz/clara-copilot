@@ -166,9 +166,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     // Recalculate spent dynamically from transactions
+    // Handle category mismatch: transactions may store "🚗 Transporte" or "Transporte"
     const budDataWithSpent = budData.map(b => {
+      const matchingCat = catData.find(c => c.name === b.category);
+      const iconPrefix = matchingCat ? matchingCat.icon + ' ' : '';
       const realSpent = txData
-        .filter(t => t.type === 'expense' && t.date.startsWith(b.period) && t.category === b.category)
+        .filter(t => t.type === 'expense' && t.date.startsWith(b.period) && 
+          (t.category === b.category || t.category === iconPrefix + b.category))
         .reduce((sum, t) => sum + t.amount, 0);
       return { ...b, spent: realSpent };
     });
