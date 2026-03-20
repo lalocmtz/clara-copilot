@@ -3,7 +3,7 @@ import Layout from "@/components/Layout";
 import QuickAddTransaction from "@/components/QuickAddTransaction";
 import { useAppData } from "@/context/AppContext";
 import { cn } from "@/lib/utils";
-import { Check, X, Settings, Plus, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Check, X, Settings, Plus, Trash2, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
 import CategoryManager from "@/components/CategoryManager";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 
